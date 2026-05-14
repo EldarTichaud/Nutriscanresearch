@@ -1447,6 +1447,7 @@
       <div class="nav-item" onclick="openPatientProfile()"><div class="nav-icon">👤</div>Profil</div>
       <div class="nav-item" id="nav-contact-btn" onclick="showContactInfo()" style="display:none"><div class="nav-icon">✉️</div>Contact</div>
       <div class="nav-item" onclick="logout()"><div class="nav-icon">🚪</div>Déconnexion</div>
+      <div class="nav-item" onclick="deleteAccount()" style="color:#e53e3e"><div class="nav-icon">🗑️</div>Supprimer</div>
     </div>
   </div>
 
@@ -1621,6 +1622,7 @@
       <div class="nav-item active"><div class="nav-icon">🏠</div>Accueil</div>
       <div class="nav-item" onclick="goTo('screen-settings')"><div class="nav-icon">⚙️</div>Paramètres</div>
       <div class="nav-item" onclick="logout()"><div class="nav-icon">🚪</div>Déconnexion</div>
+      <div class="nav-item" onclick="deleteAccount()" style="color:#e53e3e"><div class="nav-icon">🗑️</div>Supprimer</div>
     </div>
   </div>
 
@@ -2309,8 +2311,22 @@
 
   async function logout() {
     await sb.auth.signOut();
-    currentUser = null; currentProfile = null;
+    currentUser = null; currentProfile = null; currentContactEmail = null;
     goTo('screen-splash');
+  }
+
+  async function deleteAccount() {
+    const confirmed = confirm('Supprimer définitivement ce compte ?\n\nToutes les données seront effacées et cette action est irréversible.');
+    if (!confirmed) return;
+    try {
+      const { error } = await sb.rpc('delete_own_account');
+      if (error) throw error;
+      currentUser = null; currentProfile = null; currentContactEmail = null;
+      showToast('Compte supprimé', 'success');
+      goTo('screen-splash');
+    } catch(e) {
+      alert('Erreur lors de la suppression : ' + e.message);
+    }
   }
 
   function loadDemo() { goTo('screen-login'); }
