@@ -2106,6 +2106,7 @@
   async function routeByRole() {
     try {
       if (!currentProfile) { goTo('screen-splash'); return; }
+      showToast('DEBUG rôle: ' + currentProfile.role + ' | profil_complet: ' + currentProfile.profile_complete, 'info', 8000);
       if (currentProfile.role === 'investigateur') {
         const name = [currentProfile.prenom, currentProfile.nom].filter(Boolean).join(' ') || currentUser.email;
         document.getElementById('investigator-name').textContent = name;
