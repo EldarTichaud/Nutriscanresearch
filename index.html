@@ -2104,39 +2104,44 @@
   }
 
   async function routeByRole() {
-    if (!currentProfile) { goTo('screen-splash'); return; }
-    if (currentProfile.role === 'investigateur') {
-      const name = [currentProfile.prenom, currentProfile.nom].filter(Boolean).join(' ') || currentUser.email;
-      document.getElementById('investigator-name').textContent = name;
-      await loadProjects();
-      goTo('screen-home');
-    } else {
-      // Charger le projet du patient
-      const { data: pp } = await sb.from('project_patients')
-        .select('project_id, projects(name, config)')
-        .eq('patient_id', currentProfile.id).maybeSingle();
-      if (pp) {
-        document.getElementById('patient-project-tag').textContent = 'PROJET ' + pp.projects.name.toUpperCase();
-        currentProject = pp.project_id;
-        if (pp.projects.config?.showBilan) document.getElementById('patient-bilan').style.display = 'block';
-      }
-      document.getElementById('patient-greeting').textContent =
-        'Bonjour' + (currentProfile.prenom ? ', ' + currentProfile.prenom : '') + ' !';
-      // Si profil incomplet → écran profil
-      if (!currentProfile.profile_complete) {
-        showToast('Bienvenue ! Complétez votre profil pour commencer.', 'info', 4000);
-        goTo('screen-patient-profile');
+    try {
+      if (!currentProfile) { goTo('screen-splash'); return; }
+      if (currentProfile.role === 'investigateur') {
+        const name = [currentProfile.prenom, currentProfile.nom].filter(Boolean).join(' ') || currentUser.email;
+        document.getElementById('investigator-name').textContent = name;
+        await loadProjects();
+        goTo('screen-home');
       } else {
-        await loadPatientMeals();
-        // Afficher le message de bienvenue si premier login du jour
-        const lastWelcome = localStorage.getItem('nsr_welcome_shown');
-        const today = new Date().toDateString();
-        if (lastWelcome !== today) {
-          localStorage.setItem('nsr_welcome_shown', today);
-          document.getElementById('welcome-modal').classList.add('active');
+        // Charger le projet du patient
+        const { data: pp } = await sb.from('project_patients')
+          .select('project_id, projects(name, config)')
+          .eq('patient_id', currentProfile.id).maybeSingle();
+        if (pp && pp.projects) {
+          document.getElementById('patient-project-tag').textContent = 'PROJET ' + (pp.projects.name || '').toUpperCase();
+          currentProject = pp.project_id;
+          if (pp.projects.config?.showBilan) document.getElementById('patient-bilan').style.display = 'block';
         }
-        goTo('screen-patient-home');
+        document.getElementById('patient-greeting').textContent =
+          'Bonjour' + (currentProfile.prenom ? ', ' + currentProfile.prenom : '') + ' !';
+        // Si profil incomplet → écran profil
+        if (!currentProfile.profile_complete) {
+          showToast('Bienvenue ! Complétez votre profil pour commencer.', 'info', 4000);
+          goTo('screen-patient-profile');
+        } else {
+          await loadPatientMeals();
+          // Afficher le message de bienvenue si premier login du jour
+          const lastWelcome = localStorage.getItem('nsr_welcome_shown');
+          const today = new Date().toDateString();
+          if (lastWelcome !== today) {
+            localStorage.setItem('nsr_welcome_shown', today);
+            document.getElementById('welcome-modal').classList.add('active');
+          }
+          goTo('screen-patient-home');
+        }
       }
+    } catch(e) {
+      console.error('routeByRole error:', e);
+      showToast('Erreur de navigation : ' + e.message, 'error', 5000);
     }
   }
 
