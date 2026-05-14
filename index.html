@@ -1313,7 +1313,23 @@
       </div>
       <div class="form-group">
         <label class="form-label">Date de naissance</label>
-        <input type="date" class="form-input" id="profile-dob" onchange="updateAge()" />
+        <div style="display:grid;grid-template-columns:2fr 3fr 3fr;gap:8px">
+          <select class="form-input" id="profile-dob-day" onchange="updateAge()">
+            <option value="">Jour</option>
+          </select>
+          <select class="form-input" id="profile-dob-month" onchange="updateAge()">
+            <option value="">Mois</option>
+            <option value="01">Janvier</option><option value="02">Février</option>
+            <option value="03">Mars</option><option value="04">Avril</option>
+            <option value="05">Mai</option><option value="06">Juin</option>
+            <option value="07">Juillet</option><option value="08">Août</option>
+            <option value="09">Septembre</option><option value="10">Octobre</option>
+            <option value="11">Novembre</option><option value="12">Décembre</option>
+          </select>
+          <select class="form-input" id="profile-dob-year" onchange="updateAge()">
+            <option value="">Année</option>
+          </select>
+        </div>
         <div id="profile-age" style="font-size:13px;color:var(--teal);margin-top:6px;font-weight:600"></div>
       </div>
 
@@ -1428,7 +1444,8 @@
 
     <div class="bottom-nav">
       <div class="nav-item active"><div class="nav-icon">🥗</div>Mon recueil</div>
-      <div class="nav-item" onclick="goTo('screen-patient-profile')"><div class="nav-icon">👤</div>Profil</div>
+      <div class="nav-item" onclick="openPatientProfile()"><div class="nav-icon">👤</div>Profil</div>
+      <div class="nav-item" id="nav-contact-btn" onclick="showContactInfo()" style="display:none"><div class="nav-icon">✉️</div>Contact</div>
       <div class="nav-item" onclick="logout()"><div class="nav-icon">🚪</div>Déconnexion</div>
     </div>
   </div>
@@ -1725,6 +1742,12 @@
           </div>
           <div class="toggle" id="toggle-show-bilan" onclick="toggleSwitch('toggle-show-bilan')"></div>
         </div>
+      </div>
+
+      <div class="form-group" style="margin-top:12px">
+        <label class="form-label">Email de contact pour les patients</label>
+        <input type="email" class="form-input" id="project-contact-email" placeholder="ex. docteur.dupont@hopital.fr" />
+        <div style="font-size:12px;color:var(--text-light);margin-top:4px">Visible par le patient en cas de question</div>
       </div>
 
       <div class="divider"></div>
@@ -2072,6 +2095,7 @@
 
   let currentUser = null;
   let currentProfile = null;
+  let currentContactEmail = null;
 
   // =============================================
   // INIT & SESSION
@@ -2106,7 +2130,6 @@
   async function routeByRole() {
     try {
       if (!currentProfile) { goTo('screen-splash'); return; }
-      showToast('DEBUG rôle: ' + currentProfile.role + ' | profil_complet: ' + currentProfile.profile_complete, 'info', 8000);
       if (currentProfile.role === 'investigateur') {
         const name = [currentProfile.prenom, currentProfile.nom].filter(Boolean).join(' ') || currentUser.email;
         document.getElementById('investigator-name').textContent = name;
@@ -2121,13 +2144,17 @@
           document.getElementById('patient-project-tag').textContent = 'PROJET ' + (pp.projects.name || '').toUpperCase();
           currentProject = pp.project_id;
           if (pp.projects.config?.showBilan) document.getElementById('patient-bilan').style.display = 'block';
+          if (pp.projects.config?.contact_email) {
+            currentContactEmail = pp.projects.config.contact_email;
+            document.getElementById('nav-contact-btn').style.display = 'flex';
+          }
         }
         document.getElementById('patient-greeting').textContent =
           'Bonjour' + (currentProfile.prenom ? ', ' + currentProfile.prenom : '') + ' !';
         // Si profil incomplet → écran profil
         if (!currentProfile.profile_complete) {
           showToast('Bienvenue ! Complétez votre profil pour commencer.', 'info', 4000);
-          goTo('screen-patient-profile');
+          openPatientProfile();
         } else {
           await loadPatientMeals();
           // Afficher le message de bienvenue si premier login du jour
@@ -2333,6 +2360,7 @@
       showBilan: document.getElementById('toggle-show-bilan')?.classList.contains('on') || false,
       nutriscore: document.getElementById('toggle-nutriscore')?.classList.contains('on'),
       nova: document.getElementById('toggle-nova')?.classList.contains('on'),
+      contact_email: document.getElementById('project-contact-email')?.value.trim() || null,
       notification_times: {
         matin: document.getElementById('notif-matin')?.value || '08:00',
         midi: document.getElementById('notif-midi')?.value || '12:30',
@@ -2500,11 +2528,30 @@
   // =============================================
   // PROFIL PATIENT
   // =============================================
+  function getDobValue() {
+    const d = document.getElementById('profile-dob-day')?.value;
+    const m = document.getElementById('profile-dob-month')?.value;
+    const y = document.getElementById('profile-dob-year')?.value;
+    if (!d || !m || !y) return null;
+    return y + '-' + m + '-' + d.padStart(2, '0');
+  }
   function updateAge() {
-    const dob = document.getElementById('profile-dob')?.value;
+    const dob = getDobValue();
     if (!dob) return;
     const age = Math.floor((new Date() - new Date(dob)) / (365.25 * 24 * 3600 * 1000));
     document.getElementById('profile-age').textContent = age + ' ans';
+  }
+  function initDobSelects() {
+    const dayEl = document.getElementById('profile-dob-day');
+    const yearEl = document.getElementById('profile-dob-year');
+    if (!dayEl || dayEl.options.length > 1) return;
+    for (let d = 1; d <= 31; d++) {
+      dayEl.innerHTML += '<option value="' + String(d).padStart(2,'0') + '">' + d + '</option>';
+    }
+    const currentYear = new Date().getFullYear();
+    for (let y = currentYear - 10; y >= 1920; y--) {
+      yearEl.innerHTML += '<option value="' + y + '">' + y + '</option>';
+    }
   }
 
   function updateIMC() {
@@ -2536,7 +2583,7 @@
     const updates = {
       prenom: document.getElementById('profile-prenom')?.value.trim(),
       nom: document.getElementById('profile-nom')?.value.trim(),
-      date_naissance: document.getElementById('profile-dob')?.value || null,
+      date_naissance: getDobValue() || null,
       poids: parseFloat(document.getElementById('profile-poids')?.value) || null,
       taille: parseInt(document.getElementById('profile-taille')?.value) || null,
       tour_de_taille: parseFloat(document.getElementById('profile-tour-taille')?.value) || null,
@@ -2935,6 +2982,41 @@
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     document.getElementById(screenId).classList.add('active');
     window.scrollTo(0, 0);
+  }
+  function openPatientProfile() {
+    initDobSelects();
+    if (currentProfile) {
+      const el = id => document.getElementById(id);
+      if (el('profile-prenom')) el('profile-prenom').value = currentProfile.prenom || '';
+      if (el('profile-nom')) el('profile-nom').value = currentProfile.nom || '';
+      if (currentProfile.date_naissance) {
+        const parts = currentProfile.date_naissance.split('-');
+        if (parts.length === 3) {
+          el('profile-dob-year').value = parts[0];
+          el('profile-dob-month').value = parts[1];
+          el('profile-dob-day').value = parts[2];
+          updateAge();
+        }
+      }
+      if (el('profile-poids') && currentProfile.poids) el('profile-poids').value = currentProfile.poids;
+      if (el('profile-taille') && currentProfile.taille) el('profile-taille').value = currentProfile.taille;
+      if (el('profile-tour-taille') && currentProfile.tour_de_taille) el('profile-tour-taille').value = currentProfile.tour_de_taille;
+      if (currentProfile.regime && el('profile-regime')) el('profile-regime').value = currentProfile.regime;
+      if (currentProfile.allergies) {
+        document.querySelectorAll('#allergies-grid .lieu-chip').forEach(chip => {
+          chip.classList.toggle('selected', currentProfile.allergies.includes(chip.dataset.allergy));
+        });
+      }
+      updateIMC();
+    }
+    goTo('screen-patient-profile');
+  }
+  function showContactInfo() {
+    if (currentContactEmail) {
+      if (confirm('Contacter l\'investigateur ?\n\n' + currentContactEmail + '\n\nOuvrir la messagerie ?')) {
+        window.location.href = 'mailto:' + currentContactEmail + '?subject=NutriScanResearch - Question';
+      }
+    }
   }
   function openRecueil(id) { goTo('screen-recueil'); }
 
