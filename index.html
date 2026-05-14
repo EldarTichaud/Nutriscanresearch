@@ -1,0 +1,3314 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>NutriScanResearch — Recueil Alimentaire</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #F7F5F0;
+    --surface: #FFFFFF;
+    --teal: #1A5C6B;
+    --teal-light: #E8F4F6;
+    --teal-mid: #2E8B9A;
+    --amber: #D4832A;
+    --amber-light: #FEF3E2;
+    --red: #C0392B;
+    --red-light: #FDECEA;
+    --text: #1C1C1C;
+    --text-mid: #555;
+    --text-light: #888;
+    --border: #E2DDD6;
+    --shadow: 0 2px 16px rgba(0,0,0,0.08);
+    --shadow-lg: 0 8px 32px rgba(0,0,0,0.12);
+    --radius: 16px;
+    --radius-sm: 10px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+  }
+
+  .app {
+    width: 100%;
+    max-width: 430px;
+    min-height: 100vh;
+    background: var(--bg);
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* SCREENS */
+  .screen {
+    display: none;
+    flex-direction: column;
+    min-height: 100vh;
+    animation: fadeIn 0.25s ease;
+  }
+  .screen.active { display: flex; }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* HEADER */
+  .header {
+    background: var(--surface);
+    padding: 52px 20px 16px;
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  .header-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .back-btn {
+    width: 36px; height: 36px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    font-size: 18px;
+    flex-shrink: 0;
+    transition: background 0.15s;
+  }
+  .back-btn:active { background: var(--border); }
+  .header h2 {
+    font-family: 'DM Serif Display', serif;
+    font-size: 20px;
+    font-weight: 400;
+    color: var(--text);
+    flex: 1;
+  }
+  .header p {
+    font-size: 13px;
+    color: var(--text-light);
+    margin-top: 2px;
+    margin-left: 48px;
+  }
+
+  /* SCROLLABLE CONTENT */
+  .content {
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
+  }
+
+  /* BOTTOM NAV */
+  .bottom-nav {
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    padding: 8px 0 20px;
+    display: flex;
+    justify-content: space-around;
+    position: sticky;
+    bottom: 0;
+  }
+  .nav-item {
+    display: flex; flex-direction: column; align-items: center;
+    gap: 3px; cursor: pointer; padding: 6px 16px;
+    border-radius: var(--radius-sm);
+    transition: background 0.15s;
+    font-size: 11px;
+    color: var(--text-light);
+    font-weight: 500;
+  }
+  .nav-item.active { color: var(--teal); }
+  .nav-item:active { background: var(--teal-light); }
+  .nav-icon { font-size: 22px; }
+
+  /* HOME SCREEN */
+  .home-hero {
+    background: var(--teal);
+    padding: 60px 24px 40px;
+    color: white;
+    position: relative;
+    overflow: hidden;
+  }
+  .home-hero::before {
+    content: '';
+    position: absolute;
+    width: 300px; height: 300px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.05);
+    top: -100px; right: -80px;
+  }
+  .home-hero::after {
+    content: '';
+    position: absolute;
+    width: 200px; height: 200px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.04);
+    bottom: -60px; left: -40px;
+  }
+  .app-logo-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    position: relative; z-index: 1;
+    margin-bottom: 6px;
+  }
+  .nsr-logo { flex-shrink: 0; filter: drop-shadow(0 2px 8px rgba(0,0,0,0.25)); }
+  .app-logo {
+    font-family: 'DM Serif Display', serif;
+    font-size: 28px;
+    font-style: italic;
+    letter-spacing: -0.5px;
+    line-height: 1;
+  }
+  .app-logo span {
+    font-style: normal;
+    font-size: 13px;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 300;
+    display: block;
+    opacity: 0.55;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-top: 3px;
+  }
+  .app-tagline {
+    font-size: 13px;
+    opacity: 0.6;
+    font-weight: 300;
+    position: relative; z-index: 1;
+    letter-spacing: 0.3px;
+  }
+
+  .home-content { padding: 24px 20px; }
+
+  .section-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: var(--text-light);
+    margin-bottom: 12px;
+  }
+
+  /* CARDS */
+  .card {
+    background: var(--surface);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    overflow: hidden;
+    margin-bottom: 12px;
+    box-shadow: var(--shadow);
+  }
+
+  .recueil-card {
+    padding: 16px;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  .recueil-card:active { transform: scale(0.98); }
+
+  .recueil-card-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .recueil-name {
+    font-weight: 600;
+    font-size: 15px;
+  }
+  .recueil-badge {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 20px;
+    background: var(--teal-light);
+    color: var(--teal);
+  }
+  .recueil-badge.done {
+    background: #F0F0F0;
+    color: var(--text-light);
+  }
+  .recueil-meta {
+    font-size: 12px;
+    color: var(--text-light);
+    margin-bottom: 10px;
+  }
+  .progress-bar {
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    background: var(--teal-mid);
+    border-radius: 2px;
+    transition: width 0.5s ease;
+  }
+  .progress-label {
+    font-size: 11px;
+    color: var(--text-light);
+    margin-top: 5px;
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 32px 20px;
+    color: var(--text-light);
+  }
+  .empty-icon { font-size: 40px; margin-bottom: 10px; }
+  .empty-state p { font-size: 14px; }
+
+  /* BUTTONS */
+  .btn {
+    width: 100%;
+    padding: 15px;
+    border-radius: var(--radius);
+    border: none;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.1s, opacity 0.1s;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .btn:active { transform: scale(0.97); opacity: 0.9; }
+  .btn-primary { background: var(--teal); color: white; }
+  .btn-secondary {
+    background: var(--surface);
+    color: var(--teal);
+    border: 1.5px solid var(--teal);
+  }
+  .btn-danger { background: var(--red); color: white; }
+  .btn-amber { background: var(--amber); color: white; }
+  .btn-sm {
+    padding: 10px 16px;
+    width: auto;
+    font-size: 13px;
+  }
+
+  /* FORM ELEMENTS */
+  .form-group { margin-bottom: 20px; }
+  .form-label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-mid);
+    margin-bottom: 8px;
+  }
+  .form-input {
+    width: 100%;
+    padding: 14px 16px;
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    background: var(--surface);
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .form-input:focus { border-color: var(--teal); }
+
+  /* TYPE SELECTOR */
+  .type-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .type-option {
+    padding: 14px 12px;
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-sm);
+    text-align: center;
+    cursor: pointer;
+    background: var(--surface);
+    transition: all 0.15s;
+  }
+  .type-option.selected {
+    border-color: var(--teal);
+    background: var(--teal-light);
+  }
+  .type-option-icon { font-size: 24px; margin-bottom: 6px; }
+  .type-option-label { font-size: 13px; font-weight: 600; color: var(--text); }
+  .type-option-sub { font-size: 11px; color: var(--text-light); margin-top: 2px; }
+
+  /* DIVIDER */
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 20px 0;
+  }
+
+  /* CAMERA SCREEN */
+  .camera-container {
+    flex: 1;
+    background: #000;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 400px;
+  }
+  .camera-feed {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    position: absolute;
+    top: 0; left: 0;
+  }
+  .camera-placeholder {
+    color: rgba(255,255,255,0.3);
+    text-align: center;
+    position: relative; z-index: 2;
+  }
+  .camera-placeholder-icon { font-size: 48px; margin-bottom: 8px; }
+  .camera-placeholder p { font-size: 13px; }
+
+  /* MIRE (viewfinder) */
+  .mire {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 75%;
+    aspect-ratio: 1;
+    z-index: 3;
+    pointer-events: none;
+  }
+  .mire-corner {
+    position: absolute;
+    width: 24px; height: 24px;
+    border-color: white;
+    border-style: solid;
+    opacity: 0.85;
+  }
+  .mire-corner.tl { top: 0; left: 0; border-width: 3px 0 0 3px; border-radius: 4px 0 0 0; }
+  .mire-corner.tr { top: 0; right: 0; border-width: 3px 3px 0 0; border-radius: 0 4px 0 0; }
+  .mire-corner.bl { bottom: 0; left: 0; border-width: 0 0 3px 3px; border-radius: 0 0 0 4px; }
+  .mire-corner.br { bottom: 0; right: 0; border-width: 0 3px 3px 0; border-radius: 0 0 4px 0; }
+  .mire-label {
+    position: absolute;
+    bottom: -28px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: rgba(255,255,255,0.7);
+    font-size: 11px;
+    white-space: nowrap;
+    letter-spacing: 0.5px;
+  }
+
+  .camera-overlay-top {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    padding: 52px 16px 16px;
+    background: linear-gradient(to bottom, rgba(0,0,0,0.6), transparent);
+    z-index: 4;
+    color: white;
+  }
+  .camera-meal-label {
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .camera-instructions {
+    font-size: 12px;
+    opacity: 0.7;
+    margin-top: 2px;
+  }
+
+  .camera-controls {
+    background: #111;
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .shutter-btn {
+    width: 68px; height: 68px;
+    border-radius: 50%;
+    background: white;
+    border: 4px solid rgba(255,255,255,0.3);
+    cursor: pointer;
+    transition: transform 0.1s;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 28px;
+  }
+  .shutter-btn:active { transform: scale(0.93); }
+  .cam-side-btn {
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.15);
+    border: none;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+    color: white;
+  }
+
+  /* ALERT / INFO BOX */
+  .alert {
+    padding: 12px 14px;
+    border-radius: var(--radius-sm);
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    margin-bottom: 16px;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .alert-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+  .alert-warning { background: var(--amber-light); color: #7a4a0a; }
+  .alert-info { background: var(--teal-light); color: var(--teal); }
+  .alert-danger { background: var(--red-light); color: var(--red); }
+
+  /* FOOD RESULT */
+  .food-result-card {
+    background: var(--surface);
+    border: 1.5px solid var(--teal);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 12px;
+  }
+  .food-result-top {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+  .food-photo-thumb {
+    width: 60px; height: 60px;
+    border-radius: var(--radius-sm);
+    object-fit: cover;
+    background: var(--bg);
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 28px;
+  }
+  .food-name {
+    font-weight: 600;
+    font-size: 16px;
+    margin-bottom: 2px;
+  }
+  .food-confidence {
+    font-size: 12px;
+    color: var(--text-light);
+  }
+  .confidence-bar {
+    display: flex;
+    gap: 3px;
+    margin-top: 4px;
+  }
+  .confidence-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--border);
+  }
+  .confidence-dot.filled { background: var(--teal-mid); }
+
+  .nutrition-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .nutrition-item {
+    text-align: center;
+    background: var(--bg);
+    border-radius: var(--radius-sm);
+    padding: 8px 4px;
+  }
+  .nutrition-value {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--teal);
+  }
+  .nutrition-unit {
+    font-size: 10px;
+    color: var(--text-light);
+    margin-top: 1px;
+  }
+  .nutrition-label {
+    font-size: 10px;
+    color: var(--text-mid);
+    font-weight: 500;
+  }
+
+  /* MEAL LIST */
+  .meal-item {
+    background: var(--surface);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    padding: 14px;
+    margin-bottom: 8px;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    cursor: pointer;
+  }
+  .meal-item:active { background: var(--bg); }
+  .meal-time-badge {
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+  }
+  .meal-time-badge.matin { background: #FEF9E7; }
+  .meal-time-badge.midi { background: #EBF5FB; }
+  .meal-time-badge.soir { background: #EAF4F4; }
+  .meal-time-badge.autre { background: #F9EBEA; }
+  .meal-info { flex: 1; }
+  .meal-title { font-weight: 600; font-size: 14px; }
+  .meal-sub { font-size: 12px; color: var(--text-light); margin-top: 2px; }
+  .meal-kcal { font-size: 13px; font-weight: 600; color: var(--teal); }
+  .meal-status {
+    font-size: 18px;
+  }
+
+  /* DAY SELECTOR */
+  .day-strip {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    margin-bottom: 16px;
+    scrollbar-width: none;
+  }
+  .day-strip::-webkit-scrollbar { display: none; }
+  .day-chip {
+    flex-shrink: 0;
+    padding: 8px 14px;
+    border-radius: 20px;
+    border: 1.5px solid var(--border);
+    background: var(--surface);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .day-chip.active {
+    background: var(--teal);
+    color: white;
+    border-color: var(--teal);
+  }
+
+  /* SUMMARY WIDGET */
+  .summary-widget {
+    background: var(--teal);
+    border-radius: var(--radius);
+    padding: 16px;
+    color: white;
+    margin-bottom: 16px;
+  }
+  .summary-widget h3 {
+    font-family: 'DM Serif Display', serif;
+    font-size: 17px;
+    font-weight: 400;
+    margin-bottom: 12px;
+    opacity: 0.9;
+  }
+  .summary-macros {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+  }
+  .macro-item { text-align: center; }
+  .macro-value { font-size: 18px; font-weight: 600; }
+  .macro-sub { font-size: 10px; opacity: 0.65; margin-top: 1px; }
+  .macro-label { font-size: 11px; opacity: 0.8; font-weight: 500; }
+
+  /* SETTINGS */
+  .settings-section {
+    margin-bottom: 24px;
+  }
+  .settings-row {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1px;
+    cursor: pointer;
+  }
+  .settings-row:first-child { border-radius: var(--radius-sm) var(--radius-sm) 0 0; }
+  .settings-row:last-child { border-radius: 0 0 var(--radius-sm) var(--radius-sm); }
+  .settings-row:only-child { border-radius: var(--radius-sm); }
+  .settings-row:active { background: var(--bg); }
+  .settings-row-left { display: flex; align-items: center; gap: 12px; }
+  .settings-icon {
+    width: 34px; height: 34px;
+    border-radius: 8px;
+    background: var(--teal-light);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+  }
+  .settings-label { font-size: 14px; font-weight: 500; }
+  .settings-value { font-size: 13px; color: var(--text-light); }
+  .settings-arrow { color: var(--text-light); font-size: 16px; }
+
+  /* TOGGLE */
+  .toggle {
+    width: 44px; height: 26px;
+    border-radius: 13px;
+    background: var(--border);
+    position: relative;
+    cursor: pointer;
+    transition: background 0.2s;
+    flex-shrink: 0;
+  }
+  .toggle.on { background: var(--teal); }
+  .toggle::after {
+    content: '';
+    position: absolute;
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    background: white;
+    top: 3px; left: 3px;
+    transition: transform 0.2s;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+  }
+  .toggle.on::after { transform: translateX(18px); }
+
+  /* LIEU SELECTOR */
+  .lieu-grid {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .lieu-chip {
+    padding: 8px 14px;
+    border-radius: 20px;
+    border: 1.5px solid var(--border);
+    background: var(--surface);
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .lieu-chip.selected {
+    border-color: var(--teal);
+    background: var(--teal-light);
+    color: var(--teal);
+    font-weight: 600;
+  }
+
+  /* CORRECTION INPUT */
+  .correction-row {
+    display: flex; gap: 8px;
+    align-items: center;
+  }
+  .correction-row .form-input { margin: 0; }
+
+  /* MODAL */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 100;
+    align-items: flex-end;
+    justify-content: center;
+  }
+  .modal-overlay.active { display: flex; }
+  .modal {
+    background: var(--surface);
+    border-radius: var(--radius) var(--radius) 0 0;
+    padding: 20px;
+    width: 100%;
+    max-width: 430px;
+    animation: slideUp 0.25s ease;
+  }
+  @keyframes slideUp {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+  }
+  .modal-handle {
+    width: 36px; height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    margin: 0 auto 16px;
+  }
+  .modal-title {
+    font-family: 'DM Serif Display', serif;
+    font-size: 20px;
+    font-weight: 400;
+    margin-bottom: 16px;
+  }
+
+  /* LOADING */
+  .loading-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+    gap: 16px;
+  }
+  .spinner {
+    width: 40px; height: 40px;
+    border: 3px solid var(--border);
+    border-top-color: var(--teal);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-text { font-size: 14px; color: var(--text-light); text-align: center; }
+
+  /* SKIP MEAL */
+  .skip-meal-btn {
+    padding: 10px;
+    border-radius: var(--radius-sm);
+    border: 1.5px dashed var(--border);
+    background: transparent;
+    color: var(--text-light);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    cursor: pointer;
+    width: 100%;
+    margin-top: 8px;
+    transition: all 0.15s;
+  }
+  .skip-meal-btn:hover { border-color: var(--text-light); color: var(--text-mid); }
+
+  /* QUANTITY SELECTOR */
+  .quantity-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .qty-btn {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    border: 1.5px solid var(--border);
+    background: var(--surface);
+    font-size: 20px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s;
+    color: var(--teal);
+    font-weight: 600;
+  }
+  .qty-btn:active { background: var(--teal-light); }
+  .qty-input {
+    flex: 1;
+    text-align: center;
+    padding: 10px;
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text);
+    outline: none;
+  }
+  .qty-input:focus { border-color: var(--teal); }
+
+  .gap-8 { gap: 8px; }
+  .mt-12 { margin-top: 12px; }
+  .mb-0 { margin-bottom: 0; }
+
+  /* DATABASE SELECTOR */
+  .db-option {
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--surface); border: 1.5px solid var(--border);
+    border-radius: var(--radius-sm); padding: 14px;
+    margin-bottom: 8px; cursor: pointer; transition: border-color 0.15s;
+  }
+  .db-option[data-active="true"] { border-color: var(--teal); }
+  .db-option:active { background: var(--bg); }
+  .db-option-left { display: flex; align-items: center; gap: 12px; }
+  .db-option-name { font-size: 14px; font-weight: 600; }
+  .db-option-sub { font-size: 11px; color: var(--text-light); margin-top: 2px; }
+
+  .db-badge {
+    width: 44px; height: 28px; border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 700; letter-spacing: 0.5px;
+    flex-shrink: 0;
+  }
+  .db-badge.ciqual { background: var(--teal-light); color: var(--teal); }
+  .db-badge.off { background: #E8F5E9; color: #2E7D32; }
+  .db-badge.usda { background: #E3F2FD; color: #1565C0; }
+
+  /* SOURCE BADGES inline */
+  .src-badge-ciqual { font-size:10px;background:var(--teal-light);color:var(--teal);padding:2px 7px;border-radius:10px;font-weight:600; }
+  .src-badge-off { font-size:10px;background:#E8F5E9;color:#2E7D32;padding:2px 7px;border-radius:10px;font-weight:600; }
+  .src-badge-usda { font-size:10px;background:#E3F2FD;color:#1565C0;padding:2px 7px;border-radius:10px;font-weight:600; }
+
+  /* NUTRIENT GROUPS */
+  .nutrient-group { margin-bottom: 14px; }
+  .nutrient-group-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .nutrient-group-title {
+    font-size: 12px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.8px; color: var(--text-mid);
+  }
+  .nutrient-group-select-all {
+    font-size: 11px; color: var(--teal); cursor: pointer; font-weight: 600;
+  }
+  .nutrient-chips {
+    display: flex; flex-wrap: wrap; gap: 6px;
+  }
+  .nutrient-chip {
+    padding: 6px 12px; border-radius: 20px;
+    border: 1.5px solid var(--border);
+    background: var(--surface);
+    font-size: 12px; font-weight: 500;
+    cursor: pointer; transition: all 0.12s;
+    color: var(--text-mid);
+    user-select: none;
+  }
+  .nutrient-chip.selected {
+    border-color: var(--teal); background: var(--teal-light);
+    color: var(--teal); font-weight: 600;
+  }
+  .nutrient-chip.usda-only {
+    border-style: dashed; opacity: 0.6;
+  }
+  .nutrient-chip.usda-only.selected {
+    border-style: solid; opacity: 1;
+    border-color: #1565C0; background: #E3F2FD; color: #1565C0;
+  }
+
+  /* ── AUTH SCREENS ── */
+  .splash-screen {
+    background: var(--teal);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    min-height: 100vh; padding: 40px 32px;
+    text-align: center; color: white;
+  }
+  .splash-tagline { font-size: 14px; opacity: 0.65; margin-top: 6px; letter-spacing: 0.3px; }
+  .splash-buttons { width: 100%; margin-top: 56px; display: flex; flex-direction: column; gap: 12px; }
+  .btn-white { background: white; color: var(--teal); font-weight: 700; }
+  .btn-outline-white {
+    background: transparent; color: white;
+    border: 1.5px solid rgba(255,255,255,0.5); font-weight: 600;
+  }
+  .splash-demo { margin-top: 20px; font-size: 12px; opacity: 0.5; cursor: pointer; }
+  .splash-demo:hover { opacity: 0.8; }
+
+  .auth-header {
+    background: var(--teal);
+    padding: 52px 20px 24px;
+    color: white;
+  }
+  .auth-header h2 {
+    font-family: 'DM Serif Display', serif;
+    font-size: 24px; font-weight: 400; margin-bottom: 4px;
+  }
+  .auth-header p { font-size: 13px; opacity: 0.7; }
+
+  .code-input {
+    font-size: 20px; font-weight: 700; letter-spacing: 4px;
+    text-align: center; text-transform: uppercase;
+  }
+
+  .role-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px; font-weight: 600; padding: 4px 12px;
+    border-radius: 20px; margin-bottom: 16px;
+  }
+  .role-badge.investigateur { background: var(--teal-light); color: var(--teal); }
+  .role-badge.patient { background: var(--amber-light); color: var(--amber); }
+
+  /* ── INVESTIGATEUR HOME ── */
+  .welcome-bar {
+    background: var(--teal);
+    padding: 52px 20px 20px;
+    color: white;
+  }
+  .welcome-greeting {
+    font-size: 13px; opacity: 0.7; margin-bottom: 2px;
+  }
+  .welcome-name {
+    font-family: 'DM Serif Display', serif;
+    font-size: 26px; font-weight: 400;
+  }
+  .welcome-stats {
+    display: flex; gap: 16px; margin-top: 14px;
+  }
+  .stat-chip {
+    background: rgba(255,255,255,0.15);
+    padding: 8px 14px; border-radius: 20px;
+    font-size: 12px; font-weight: 600;
+  }
+
+  .project-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px; margin-bottom: 10px;
+    cursor: pointer;
+    box-shadow: var(--shadow);
+    transition: transform 0.15s;
+  }
+  .project-card:active { transform: scale(0.98); }
+  .project-card-top {
+    display: flex; align-items: flex-start;
+    justify-content: space-between; margin-bottom: 8px;
+  }
+  .project-card-name { font-weight: 700; font-size: 15px; }
+  .project-card-meta { font-size: 12px; color: var(--text-light); margin-bottom: 10px; }
+  .project-patient-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .patient-chip-mini {
+    font-size: 11px; padding: 3px 10px; border-radius: 12px;
+    font-weight: 600;
+  }
+  .patient-chip-mini.active { background: var(--teal-light); color: var(--teal); }
+  .patient-chip-mini.pending { background: var(--amber-light); color: var(--amber); }
+
+  /* ── PROJECT DETAIL ── */
+  .tabs {
+    display: flex;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 5;
+  }
+  .tab {
+    flex: 1; padding: 14px 8px; text-align: center;
+    font-size: 13px; font-weight: 600;
+    color: var(--text-light); cursor: pointer;
+    border-bottom: 2.5px solid transparent;
+    transition: all 0.15s;
+  }
+  .tab.active { color: var(--teal); border-bottom-color: var(--teal); }
+
+  .patient-row {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 14px; margin-bottom: 8px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .patient-avatar {
+    width: 40px; height: 40px; border-radius: 50%;
+    background: var(--teal-light);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; flex-shrink: 0; font-weight: 700; color: var(--teal);
+  }
+  .patient-info { flex: 1; }
+  .patient-name { font-weight: 600; font-size: 14px; }
+  .patient-status { font-size: 12px; color: var(--text-light); margin-top: 2px; }
+  .status-dot {
+    display: inline-block; width: 7px; height: 7px;
+    border-radius: 50%; margin-right: 4px;
+  }
+  .status-dot.active { background: #2E7D32; }
+  .status-dot.pending { background: var(--amber); }
+
+  .token-box {
+    background: var(--bg); border: 1.5px dashed var(--border);
+    border-radius: var(--radius-sm); padding: 16px;
+    text-align: center; margin: 12px 0;
+  }
+  .token-code {
+    font-size: 22px; font-weight: 700; letter-spacing: 4px;
+    color: var(--teal); font-family: monospace;
+  }
+  .token-info { font-size: 12px; color: var(--text-light); margin-top: 6px; }
+
+  /* ── PATIENT HOME ── */
+  .patient-hero {
+    background: linear-gradient(135deg, var(--teal) 0%, var(--teal-mid) 100%);
+    padding: 52px 20px 24px; color: white;
+  }
+  .patient-project-tag {
+    font-size: 11px; font-weight: 600; letter-spacing: 1px;
+    text-transform: uppercase; opacity: 0.7; margin-bottom: 6px;
+  }
+  .patient-greeting {
+    font-family: 'DM Serif Display', serif;
+    font-size: 24px; font-weight: 400; margin-bottom: 12px;
+  }
+  .today-progress {
+    background: rgba(255,255,255,0.15);
+    border-radius: var(--radius-sm); padding: 12px 16px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .today-progress-label { font-size: 13px; opacity: 0.85; }
+  .today-progress-count { font-size: 20px; font-weight: 700; }
+
+  /* TOAST */
+  .toast-container {
+    position: fixed; bottom: 88px; left: 50%; transform: translateX(-50%);
+    z-index: 9999; display: flex; flex-direction: column;
+    align-items: center; gap: 8px; pointer-events: none; width: 90%; max-width: 380px;
+  }
+  .toast {
+    padding: 13px 20px; border-radius: 24px; font-size: 14px; font-weight: 500;
+    color: white; box-shadow: 0 4px 24px rgba(0,0,0,0.18);
+    animation: toastIn 0.3s ease, toastOut 0.3s ease 2.7s forwards; text-align: center; width: 100%;
+  }
+  .toast.success { background: #2E7D32; }
+  .toast.error { background: var(--red); }
+  .toast.info { background: var(--teal); }
+  .toast.warning { background: var(--amber); }
+  @keyframes toastIn { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+  @keyframes toastOut { from { opacity:1; } to { opacity:0; transform:translateY(-8px); } }
+
+  /* LOADING BUTTON */
+  .btn:disabled { opacity: 0.65; cursor: not-allowed; transform: none; }
+  .btn-spinner {
+    width: 18px; height: 18px; border: 2.5px solid rgba(255,255,255,0.35);
+    border-top-color: white; border-radius: 50%;
+    animation: spin 0.7s linear infinite; display: inline-block;
+    vertical-align: middle; margin-right: 8px;
+  }
+
+  /* STEP INDICATOR */
+  .steps { display: flex; align-items: center; justify-content: center; gap: 0; margin: 16px 0 20px; padding: 0 16px; }
+  .step { display: flex; flex-direction: column; align-items: center; gap: 4px; flex-shrink: 0; }
+  .step-circle {
+    width: 30px; height: 30px; border-radius: 50%;
+    background: rgba(255,255,255,0.2); color: rgba(255,255,255,0.6);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700; transition: all 0.3s;
+  }
+  .step.active .step-circle { background: white; color: var(--teal); }
+  .step.done .step-circle { background: #4CAF50; color: white; content: '✓'; }
+  .step-label { font-size: 10px; color: rgba(255,255,255,0.6); font-weight: 500; }
+  .step.active .step-label, .step.done .step-label { color: white; }
+  .step-line { flex: 1; height: 2px; background: rgba(255,255,255,0.2); min-width: 28px; }
+  .step-line.done { background: #4CAF50; }
+
+  /* WELCOME MODAL */
+  .welcome-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.6); z-index: 200;
+    align-items: center; justify-content: center; padding: 24px;
+  }
+  .welcome-overlay.active { display: flex; }
+  .welcome-card { background: var(--surface); border-radius: var(--radius); padding: 28px 24px; max-width: 380px; width: 100%; animation: fadeIn 0.3s ease; }
+  .welcome-card h2 { font-family: 'DM Serif Display', serif; font-size: 22px; font-weight: 400; margin-bottom: 6px; }
+  .welcome-step-list { margin: 16px 0; display: flex; flex-direction: column; gap: 12px; }
+  .welcome-step { display: flex; gap: 12px; align-items: flex-start; font-size: 14px; color: var(--text-mid); }
+  .welcome-step-icon {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: var(--teal-light); color: var(--teal);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; flex-shrink: 0;
+  }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#1A5C6B">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="NSR">
+<link rel="apple-touch-icon" href="/icon-192.png">
+</head>
+<body>
+<div class="app">
+
+  <!-- TOAST CONTAINER -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- WELCOME MODAL PATIENT -->
+  <div class="welcome-overlay" id="welcome-modal">
+    <div class="welcome-card">
+      <div style="font-size:36px;margin-bottom:8px">👋</div>
+      <h2>Bienvenue dans NutriScanResearch</h2>
+      <p style="font-size:13px;color:var(--text-light);margin-bottom:4px">Voici comment enregistrer vos repas :</p>
+      <div class="welcome-step-list">
+        <div class="welcome-step">
+          <div class="welcome-step-icon">📷</div>
+          <div><strong>Photographiez</strong> votre repas avant de manger, ou saisissez-le manuellement.</div>
+        </div>
+        <div class="welcome-step">
+          <div class="welcome-step-icon">✓</div>
+          <div><strong>Vérifiez</strong> les aliments identifiés par l'IA et corrigez si nécessaire.</div>
+        </div>
+        <div class="welcome-step">
+          <div class="welcome-step-icon">💾</div>
+          <div><strong>Validez</strong> le repas pour l'enregistrer. Répétez à chaque repas.</div>
+        </div>
+        <div class="welcome-step">
+          <div class="welcome-step-icon">⊘</div>
+          <div>Si vous <strong>sautez un repas</strong>, signalez-le avec le bouton dédié.</div>
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="closeWelcome()">Commencer</button>
+    </div>
+  </div>
+
+  <!-- ============ SCREEN: SPLASH ============ -->
+  <div class="screen active" id="screen-splash">
+    <div class="splash-screen">
+      <svg width="72" height="72" viewBox="0 0 58 58" xmlns="http://www.w3.org/2000/svg" style="margin-bottom:16px">
+        <rect width="58" height="58" rx="15" fill="rgba(255,255,255,0.15)"/>
+        <rect x="1" y="1" width="56" height="56" rx="14" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="1"/>
+        <text x="7" y="37" font-family="Georgia,serif" font-size="19" font-weight="700" fill="white">N</text>
+        <text x="20" y="38" font-family="Georgia,serif" font-size="22" font-style="italic" font-weight="700" fill="#F0B94A">S</text>
+        <text x="35" y="37" font-family="Georgia,serif" font-size="19" font-weight="700" fill="white">R</text>
+        <path d="M6 44 L14 44 L17 40 L22 47 L25 41 L30 41 L36 41 L52 41" stroke="#F0B94A" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="0.75"/>
+        <circle cx="22" cy="47" r="2" fill="#F0B94A" opacity="0.9"/>
+      </svg>
+      <div style="font-family:'DM Serif Display',serif;font-size:28px;font-style:italic">
+        NutriScan<span style="font-style:normal;color:#F0B94A">Research</span>
+      </div>
+      <div class="splash-tagline">Recueil alimentaire de recherche clinique</div>
+      <div class="splash-buttons">
+        <button class="btn btn-white" onclick="goTo('screen-login')">Se connecter</button>
+        <button class="btn btn-outline-white" onclick="goTo('screen-activate')">Activer mon compte</button>
+      </div>
+      <div class="splash-demo" onclick="loadDemo()">⚡ Charger la démo</div>
+    </div>
+  </div>
+
+  <!-- ============ SCREEN: SIGNUP INVESTIGATEUR ============ -->
+  <div class="screen" id="screen-signup">
+    <div class="auth-header">
+      <div class="header-row" style="margin-bottom:12px">
+        <div class="back-btn" style="background:rgba(255,255,255,0.2);border-color:rgba(255,255,255,0.3);color:white" onclick="goTo('screen-login')">←</div>
+      </div>
+      <h2>Créer un compte</h2>
+      <p>Espace investigateur / soignant</p>
+    </div>
+    <div class="content">
+      <div class="form-group">
+        <label class="form-label">Prénom</label>
+        <input type="text" class="form-input" id="signup-prenom" placeholder="ex. Sophie" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Nom</label>
+        <input type="text" class="form-input" id="signup-nom" placeholder="ex. Martin" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Adresse e-mail professionnelle</label>
+        <input type="email" class="form-input" id="signup-email" placeholder="vous@chu-hopital.fr" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Mot de passe</label>
+        <input type="password" class="form-input" id="signup-pwd" placeholder="Minimum 8 caractères" />
+      </div>
+      <div id="signup-error" class="alert alert-danger" style="display:none">
+        <span class="alert-icon">❌</span><span id="signup-error-msg"></span>
+      </div>
+      <div id="signup-success" class="alert alert-info" style="display:none">
+        <span class="alert-icon">✉️</span>
+        <span>Compte créé ! Vérifiez votre e-mail pour confirmer votre inscription, puis connectez-vous.</span>
+      </div>
+      <button class="btn btn-primary" onclick="doSignup()">Créer mon compte</button>
+    </div>
+  </div>
+
+  <!-- ============ SCREEN: LOGIN ============ -->
+  <div class="screen" id="screen-login">
+    <div class="auth-header">
+      <div class="header-row" style="margin-bottom:12px">
+        <div class="back-btn" style="background:rgba(255,255,255,0.2);border-color:rgba(255,255,255,0.3);color:white" onclick="goTo('screen-splash')">←</div>
+      </div>
+      <h2>Connexion</h2>
+      <p>Espace investigateur ou patient</p>
+    </div>
+    <div class="content">
+      <div id="login-role-badge" style="display:none"></div>
+      <div class="form-group">
+        <label class="form-label">Adresse e-mail</label>
+        <input type="email" class="form-input" id="login-email" placeholder="votre@email.com" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Mot de passe</label>
+        <input type="password" class="form-input" id="login-password" placeholder="••••••••" />
+      </div>
+      <div id="login-error" class="alert alert-danger" style="display:none">
+        <span class="alert-icon">❌</span><span id="login-error-msg">Email ou mot de passe incorrect.</span>
+      </div>
+      <button class="btn btn-primary" id="btn-login" onclick="doLogin()" style="margin-top:8px">Se connecter</button>
+      <p style="text-align:center;font-size:13px;color:var(--text-light);margin-top:16px;cursor:pointer">Mot de passe oublié ?</p>
+      <div class="divider"></div>
+      <p style="text-align:center;font-size:13px;color:var(--text-mid)">Pas encore de compte investigateur ?</p>
+      <button class="btn btn-secondary" style="margin-top:8px" onclick="goTo('screen-signup')">Créer un compte investigateur</button>
+    </div>
+  </div>
+
+  <!-- ============ SCREEN: ACTIVATE ============ -->
+  <div class="screen" id="screen-activate">
+    <div class="auth-header">
+      <div class="header-row" style="margin-bottom:12px">
+        <div class="back-btn" style="background:rgba(255,255,255,0.2);border-color:rgba(255,255,255,0.3);color:white" onclick="goTo('screen-splash')">←</div>
+      </div>
+      <h2>Activer mon compte</h2>
+      <p>Saisissez le code reçu par e-mail</p>
+      <!-- ÉTAPES -->
+      <div class="steps">
+        <div class="step active" id="act-step-1">
+          <div class="step-circle">1</div>
+          <div class="step-label">Code</div>
+        </div>
+        <div class="step-line" id="act-line-1"></div>
+        <div class="step" id="act-step-2">
+          <div class="step-circle">2</div>
+          <div class="step-label">Compte</div>
+        </div>
+        <div class="step-line" id="act-line-2"></div>
+        <div class="step" id="act-step-3">
+          <div class="step-circle">3</div>
+          <div class="step-label">Profil</div>
+        </div>
+      </div>
+    </div>
+    <div class="content">
+      <div class="form-group">
+        <label class="form-label">Code d'activation</label>
+        <input type="text" class="form-input code-input" id="activate-code" placeholder="NR-2026-XXXXXX" maxlength="14" oninput="formatCode(this)" />
+        <div style="font-size:12px;color:var(--text-light);margin-top:6px">Format : NR-XXXX-XXXXXX (reçu par e-mail)</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Votre adresse e-mail</label>
+        <input type="email" class="form-input" id="activate-email" placeholder="votre@email.com" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Choisissez un mot de passe</label>
+        <input type="password" class="form-input" id="activate-pwd" placeholder="Minimum 8 caractères" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Confirmez le mot de passe</label>
+        <input type="password" class="form-input" id="activate-pwd2" placeholder="••••••••" />
+      </div>
+      <div id="activate-error" class="alert alert-danger" style="display:none">
+        <span class="alert-icon">❌</span><span id="activate-error-msg"></span>
+      </div>
+      <button class="btn btn-primary" id="btn-activate" onclick="doActivate()">Activer mon compte</button>
+    </div>
+  </div>
+
+  <!-- ============ SCREEN: PATIENT PROFILE ============ -->
+  <div class="screen" id="screen-patient-profile">
+    <div class="auth-header">
+      <h2>Mon profil</h2>
+      <p>Ces informations restent confidentielles</p>
+    </div>
+    <div class="content">
+      <div class="alert alert-info">
+        <span class="alert-icon">ℹ️</span>
+        <span>Ces données sont accessibles à votre médecin investigateur dans le cadre de l'étude.</span>
+      </div>
+
+      <div class="section-label">Identité</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
+        <div>
+          <label class="form-label">Prénom</label>
+          <input type="text" class="form-input" id="profile-prenom" placeholder="Prénom" />
+        </div>
+        <div>
+          <label class="form-label">Nom</label>
+          <input type="text" class="form-input" id="profile-nom" placeholder="Nom" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Date de naissance</label>
+        <input type="date" class="form-input" id="profile-dob" onchange="updateAge()" />
+        <div id="profile-age" style="font-size:13px;color:var(--teal);margin-top:6px;font-weight:600"></div>
+      </div>
+
+      <div class="divider"></div>
+      <div class="section-label">Anthropométrie</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+        <div>
+          <label class="form-label">Poids (kg)</label>
+          <input type="number" class="form-input" id="profile-poids" placeholder="70" step="0.1" oninput="updateIMC()" />
+        </div>
+        <div>
+          <label class="form-label">Taille (cm)</label>
+          <input type="number" class="form-input" id="profile-taille" placeholder="170" oninput="updateIMC()" />
+        </div>
+      </div>
+      <div id="imc-display" style="display:none;background:var(--teal-light);border-radius:var(--radius-sm);padding:12px;margin-bottom:16px;text-align:center">
+        <div style="font-size:22px;font-weight:700;color:var(--teal)" id="imc-value">--</div>
+        <div style="font-size:12px;color:var(--text-mid)">IMC (kg/m²) · <span id="imc-label"></span></div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Tour de taille (cm) <span style="color:var(--text-light);font-weight:400">optionnel</span></label>
+        <input type="number" class="form-input" id="profile-tour-taille" placeholder="80" />
+      </div>
+
+      <div class="divider"></div>
+      <div class="section-label">Allergies alimentaires</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px" id="allergies-grid">
+        <div class="lieu-chip" onclick="toggleAllergy(this)" data-allergy="gluten">🌾 Gluten</div>
+        <div class="lieu-chip" onclick="toggleAllergy(this)" data-allergy="lactose">🥛 Lactose</div>
+        <div class="lieu-chip" onclick="toggleAllergy(this)" data-allergy="arachides">🥜 Arachides</div>
+        <div class="lieu-chip" onclick="toggleAllergy(this)" data-allergy="fruits_a_coques">🌰 Fruits à coques</div>
+        <div class="lieu-chip" onclick="toggleAllergy(this)" data-allergy="oeufs">🥚 Œufs</div>
+        <div class="lieu-chip" onclick="toggleAllergy(this)" data-allergy="poisson">🐟 Poisson</div>
+        <div class="lieu-chip" onclick="toggleAllergy(this)" data-allergy="crustaces">🦐 Crustacés</div>
+        <div class="lieu-chip" onclick="toggleAllergy(this)" data-allergy="soja">🫘 Soja</div>
+        <div class="lieu-chip" onclick="toggleAllergy(this)" data-allergy="sulfites">🍷 Sulfites</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Autres allergies</label>
+        <input type="text" class="form-input" id="profile-autres-allergies" placeholder="ex. kiwi, céleri..." />
+      </div>
+
+      <div class="divider"></div>
+      <div class="section-label">Régime alimentaire</div>
+      <div class="form-group">
+        <select class="form-input" id="profile-regime">
+          <option value="omnivore">🍽️ Omnivore</option>
+          <option value="vegetarien">🥗 Végétarien</option>
+          <option value="vegetalien">🌱 Végétalien / Vegan</option>
+          <option value="sans_gluten">🌾 Sans gluten</option>
+          <option value="sans_lactose">🥛 Sans lactose</option>
+          <option value="halal">☪️ Halal</option>
+          <option value="casher">✡️ Casher</option>
+          <option value="autre">✏️ Autre</option>
+        </select>
+      </div>
+
+      <button class="btn btn-primary" onclick="savePatientProfile()" style="margin-bottom:32px">
+        Enregistrer mon profil
+      </button>
+    </div>
+  </div>
+
+  <!-- ============ SCREEN: PATIENT HOME ============ -->
+  <div class="screen" id="screen-patient-home">
+    <div class="patient-hero">
+      <div class="patient-project-tag" id="patient-project-tag">PROJET</div>
+      <div class="patient-greeting" id="patient-greeting">Bonjour !</div>
+      <div class="today-progress">
+        <div>
+          <div class="today-progress-label">Repas enregistrés aujourd'hui</div>
+          <div style="font-size:11px;opacity:0.65;margin-top:2px" id="patient-notif-time">—</div>
+        </div>
+        <div class="today-progress-count" id="patient-meal-count">0</div>
+      </div>
+    </div>
+
+    <div class="content">
+      <!-- Boutons d'ajout -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px">
+        <button class="btn btn-primary" onclick="goTo('screen-camera')">📷 Photo</button>
+        <button class="btn btn-secondary" onclick="showManualMealModal()">✏️ Saisir</button>
+      </div>
+
+      <!-- Liste des repas du jour -->
+      <div class="section-label">Mes repas d'aujourd'hui</div>
+      <div id="patient-meals-list">
+        <div class="empty-state">
+          <div class="empty-icon">🍽️</div>
+          <p>Aucun repas enregistré aujourd'hui.<br>Photographiez ou saisissez votre premier repas.</p>
+        </div>
+      </div>
+
+      <button class="skip-meal-btn" onclick="showSkipModal()">⊘ Signaler un repas sauté</button>
+
+      <!-- Bilan journalier (si autorisé) -->
+      <div id="patient-bilan" style="display:none;margin-top:20px">
+        <div class="section-label">Mon bilan du jour</div>
+        <div class="summary-widget">
+          <h3>Apports du jour</h3>
+          <div class="summary-macros" id="patient-bilan-macros">
+            <div class="macro-item"><div class="macro-value" id="bilan-kcal">0</div><div class="macro-sub">kcal</div><div class="macro-label">Énergie</div></div>
+            <div class="macro-item"><div class="macro-value" id="bilan-prot">0g</div><div class="macro-label">Protéines</div></div>
+            <div class="macro-item"><div class="macro-value" id="bilan-lip">0g</div><div class="macro-label">Lipides</div></div>
+            <div class="macro-item"><div class="macro-value" id="bilan-gluc">0g</div><div class="macro-label">Glucides</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div style="height:80px"></div>
+    </div>
+
+    <div class="bottom-nav">
+      <div class="nav-item active"><div class="nav-icon">🥗</div>Mon recueil</div>
+      <div class="nav-item" onclick="goTo('screen-patient-profile')"><div class="nav-icon">👤</div>Profil</div>
+      <div class="nav-item" onclick="logout()"><div class="nav-icon">🚪</div>Déconnexion</div>
+    </div>
+  </div>
+
+  <!-- ============ SCREEN: PROJECT DETAIL (Investigateur) ============ -->
+  <div class="screen" id="screen-project">
+    <div class="header">
+      <div class="header-row">
+        <div class="back-btn" onclick="goTo('screen-home')">←</div>
+        <h2 id="project-detail-name">Projet NUTRIA</h2>
+      </div>
+      <p id="project-detail-meta">Rappel 72h · 4 patients</p>
+    </div>
+
+    <div class="tabs">
+      <div class="tab active" id="tab-patients" onclick="switchTab('patients')">Patients</div>
+      <div class="tab" id="tab-config" onclick="switchTab('config')">Configuration</div>
+      <div class="tab" id="tab-data" onclick="switchTab('data')">Données</div>
+    </div>
+
+    <!-- TAB: PATIENTS -->
+    <div id="tabcontent-patients" class="content">
+      <div id="patients-list">
+        <!-- Rempli dynamiquement -->
+      </div>
+    </div>
+
+    <!-- TAB: CONFIGURATION -->
+    <div id="tabcontent-config" class="content" style="display:none">
+      <div class="form-group">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <label class="form-label" style="margin:0">Afficher le bilan au patient</label>
+          <div class="toggle" id="toggle-show-bilan" onclick="toggleSwitch('toggle-show-bilan')"></div>
+        </div>
+        <div style="font-size:12px;color:var(--text-light);margin-top:6px">Si désactivé, le patient ne voit pas ses valeurs nutritionnelles — recommandé pour éviter les biais comportementaux.</div>
+      </div>
+      <div class="divider"></div>
+      <div class="section-label">Bases de données</div>
+      <div style="font-size:13px;color:var(--text-mid);margin-bottom:12px">CIQUAL · Open Food Facts · USDA (configurés à la création)</div>
+      <div class="divider"></div>
+      <div class="section-label">Nutriments suivis</div>
+      <div id="config-nutrients-summary" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">
+        <!-- Rempli dynamiquement -->
+      </div>
+      <button class="btn btn-secondary" onclick="goTo('screen-create')">Modifier la configuration</button>
+    </div>
+
+    <!-- TAB: DONNÉES -->
+    <div id="tabcontent-data" class="content" style="display:none">
+      <div class="alert alert-info">
+        <span class="alert-icon">📊</span>
+        <span>Export des données disponible une fois le recueil terminé.</span>
+      </div>
+      <div class="section-label">Aperçu par patient</div>
+      <div id="data-list">
+        <!-- Rempli dynamiquement -->
+      </div>
+      <button class="btn btn-secondary" style="margin-top:16px">📤 Exporter CSV</button>
+    </div>
+  </div>
+
+  <!-- MODAL: AJOUTER / INVITER PATIENT -->
+  <div class="modal-overlay" id="modal-add-patient" onclick="closeModal('modal-add-patient')">
+    <div class="modal" onclick="event.stopPropagation()">
+      <div class="modal-handle"></div>
+      <div class="modal-title">Inviter un patient</div>
+      <div id="add-patient-form">
+        <div class="form-group">
+          <label class="form-label">Prénom du patient</label>
+          <input type="text" class="form-input" id="new-patient-name" placeholder="ex. Jean" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Adresse e-mail</label>
+          <input type="email" class="form-input" id="new-patient-email" placeholder="patient@email.com" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Projet de recherche</label>
+          <select class="form-input" id="new-patient-project">
+            <!-- Rempli dynamiquement -->
+          </select>
+        </div>
+        <div id="add-patient-form-btns">
+          <button class="btn btn-primary" onclick="generatePatientToken()">Générer le code d'invitation</button>
+        </div>
+      </div>
+      <div id="generated-token-box" style="display:none">
+        <div class="alert alert-info">
+          <span class="alert-icon">✉️</span>
+          <span>Code généré. Envoyez l'email d'invitation au patient.</span>
+        </div>
+        <div class="token-box">
+          <div class="token-code" id="generated-token-display">NR-2026-XXXXXX</div>
+          <div class="token-info">Valide 7 jours</div>
+        </div>
+        <button class="btn btn-primary" id="btn-send-email" onclick="sendInvitationEmail()" style="margin-bottom:8px">
+          📧 Ouvrir l'email d'invitation
+        </button>
+        <button class="btn btn-secondary" onclick="closeModal('modal-add-patient')">Fermer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: SAISIE MANUELLE REPAS -->
+  <div class="modal-overlay" id="modal-manual-meal" onclick="closeModal('modal-manual-meal')">
+    <div class="modal" onclick="event.stopPropagation()" style="max-height:85vh;overflow-y:auto">
+      <div class="modal-handle"></div>
+      <div class="modal-title">Saisir un repas</div>
+      <div class="alert alert-info" style="margin-bottom:12px">
+        <span class="alert-icon">💡</span>
+        <span>Décrivez votre repas ou un aliment précis. L'IA identifiera les valeurs nutritionnelles.</span>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Votre repas</label>
+        <textarea class="form-input" id="manual-meal-input" rows="3"
+          placeholder="ex: poulet grillé avec riz et haricots verts, ou: une tranche de pain complet avec du beurre"
+          style="resize:none"></textarea>
+      </div>
+      <div id="manual-meal-loading" style="display:none" class="loading-state">
+        <div class="spinner"></div>
+        <div class="loading-text">Analyse en cours…</div>
+      </div>
+      <button class="btn btn-primary" id="btn-analyze-manual" onclick="analyzeManualMeal()">
+        Analyser
+      </button>
+    </div>
+  </div>
+
+  <!-- ============ SCREEN: HOME (Investigateur) ============ -->
+  <div class="screen" id="screen-home">
+    <div class="welcome-bar">
+      <div class="welcome-greeting">Bonjour,</div>
+      <div class="welcome-name" id="investigator-name">Dr. Martin</div>
+      <div class="welcome-stats">
+        <div class="stat-chip">3 projets actifs</div>
+        <div class="stat-chip">8 patients</div>
+      </div>
+    </div>
+    <div class="home-content">
+      <div class="section-label">Projets en cours</div>
+      <div id="projects-list">
+        <div class="project-card" onclick="openProject('nutria')">
+          <div class="project-card-top">
+            <div class="project-card-name">Étude NUTRIA</div>
+            <div class="recueil-badge">En cours</div>
+          </div>
+          <div class="project-card-meta">Rappel 72h · CIQUAL + OFF · Démarré le 1er avr. 2026</div>
+          <div class="project-patient-chips">
+            <span class="patient-chip-mini active">P01 ✓</span>
+            <span class="patient-chip-mini active">P02 ✓</span>
+            <span class="patient-chip-mini pending">P03 ⏳</span>
+            <span class="patient-chip-mini pending">P04 ⏳</span>
+          </div>
+        </div>
+        <div class="project-card" onclick="openProject('bariaprot')">
+          <div class="project-card-top">
+            <div class="project-card-name">Étude BARIAPROT</div>
+            <div class="recueil-badge">En cours</div>
+          </div>
+          <div class="project-card-meta">Rappel 7 jours · CIQUAL · Démarré le 20 mars 2026</div>
+          <div class="project-patient-chips">
+            <span class="patient-chip-mini active">P01 ✓</span>
+            <span class="patient-chip-mini active">P02 ✓</span>
+            <span class="patient-chip-mini active">P03 ✓</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+      <button class="btn btn-primary" onclick="goTo('screen-create')">＋ Nouveau projet</button>
+    </div>
+
+    <div class="bottom-nav">
+      <div class="nav-item active"><div class="nav-icon">🏠</div>Accueil</div>
+      <div class="nav-item" onclick="goTo('screen-settings')"><div class="nav-icon">⚙️</div>Paramètres</div>
+      <div class="nav-item" onclick="logout()"><div class="nav-icon">🚪</div>Déconnexion</div>
+    </div>
+  </div>
+
+  <!-- ============ SCREEN: CREATE PROJECT ============ -->
+  <div class="screen" id="screen-create">
+    <div class="header">
+      <div class="header-row">
+        <div class="back-btn" onclick="goTo('screen-home')">←</div>
+        <h2>Nouveau projet</h2>
+      </div>
+    </div>
+    <div class="content">
+
+      <div class="section-label">Informations générales</div>
+      <div class="form-group">
+        <label class="form-label">Nom du projet</label>
+        <input type="text" class="form-input" id="recueil-name-input" placeholder="ex. Étude NUTRIA" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Type de recueil</label>
+        <div class="type-grid">
+          <div class="type-option selected" onclick="selectType(this,'24h')" data-type="24h">
+            <div class="type-option-icon">📅</div><div class="type-option-label">R24H</div><div class="type-option-sub">1 journée</div>
+          </div>
+          <div class="type-option" onclick="selectType(this,'72h')" data-type="72h">
+            <div class="type-option-icon">📆</div><div class="type-option-label">R72H</div><div class="type-option-sub">3 journées</div>
+          </div>
+          <div class="type-option" onclick="selectType(this,'5j')" data-type="5j">
+            <div class="type-option-icon">🗓️</div><div class="type-option-label">5 jours</div><div class="type-option-sub">5 journées</div>
+          </div>
+          <div class="type-option" onclick="selectType(this,'7j')" data-type="7j">
+            <div class="type-option-icon">📊</div><div class="type-option-label">7 jours</div><div class="type-option-sub">1 semaine</div>
+          </div>
+          <div class="type-option" onclick="selectType(this,'custom')" data-type="custom">
+            <div class="type-option-icon">✏️</div><div class="type-option-label">Personnalisé</div><div class="type-option-sub">Choisir</div>
+          </div>
+        </div>
+      </div>
+      <div class="form-group" id="custom-days-group" style="display:none">
+        <label class="form-label">Nombre de jours de recueil</label>
+        <input type="number" class="form-input" id="custom-days" placeholder="ex. 5" min="1" max="30" />
+      </div>
+
+      <div class="divider"></div>
+      <div class="section-label">Calendrier</div>
+      <div class="form-group">
+        <label class="form-label">Date de début</label>
+        <input type="date" class="form-input" id="project-start-date" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Durée d'accès patient</label>
+        <select class="form-input" id="project-access-duration">
+          <option value="7">7 jours</option>
+          <option value="14">14 jours</option>
+          <option value="30" selected>30 jours</option>
+          <option value="60">60 jours</option>
+          <option value="90">90 jours</option>
+        </select>
+      </div>
+
+      <div class="divider"></div>
+      <div class="section-label">Horaires de rappels</div>
+      <div class="alert alert-info" style="margin-bottom:12px">
+        <span class="alert-icon">📱</span>
+        <span>Les rappels seront envoyés par email aux horaires configurés.</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+        <div><label class="form-label">🌅 Petit-déjeuner</label><input type="time" class="form-input" id="notif-matin" value="08:00" /></div>
+        <div><label class="form-label">☀️ Déjeuner</label><input type="time" class="form-input" id="notif-midi" value="12:30" /></div>
+        <div><label class="form-label">🌙 Dîner</label><input type="time" class="form-input" id="notif-soir" value="19:30" /></div>
+        <div><label class="form-label">🍎 Collation</label><input type="time" class="form-input" id="notif-collation" value="16:00" /></div>
+      </div>
+
+      <div class="divider"></div>
+      <div class="section-label">Bases de données</div>
+      <div class="db-option" id="db-ciqual" onclick="toggleDb('ciqual')" data-active="true">
+        <div class="db-option-left"><div class="db-badge ciqual">CIQUAL</div><div><div class="db-option-name">CIQUAL 2020 — ANSES</div><div class="db-option-sub">~3 484 aliments</div></div></div>
+        <div class="toggle on" id="toggle-ciqual"></div>
+      </div>
+      <div class="db-option" id="db-off" onclick="toggleDb('off')" data-active="true">
+        <div class="db-option-left"><div class="db-badge off">OFF</div><div><div class="db-option-name">Open Food Facts</div><div class="db-option-sub">Produits de marque</div></div></div>
+        <div class="toggle on" id="toggle-off"></div>
+      </div>
+      <div class="db-option" id="db-usda" onclick="toggleDb('usda')" data-active="false">
+        <div class="db-option-left"><div class="db-badge usda">USDA</div><div><div class="db-option-name">USDA FoodData Central</div><div class="db-option-sub">~600 000 aliments</div></div></div>
+        <div class="toggle" id="toggle-usda"></div>
+      </div>
+      <div id="off-options" style="margin-top:8px">
+        <div class="settings-row" style="border-radius:var(--radius-sm) var(--radius-sm) 0 0;margin-bottom:0">
+          <div class="settings-row-left"><div class="settings-icon" style="background:#E8F5E9">🏷️</div><div class="settings-label">Nutri-Score</div></div>
+          <div class="toggle on" id="toggle-nutriscore" onclick="event.stopPropagation();toggleSwitch('toggle-nutriscore')"></div>
+        </div>
+        <div class="settings-row" style="border-radius:0 0 var(--radius-sm) var(--radius-sm);margin-top:1px">
+          <div class="settings-row-left"><div class="settings-icon" style="background:#E8F5E9">🔢</div><div class="settings-label">Classification NOVA</div></div>
+          <div class="toggle on" id="toggle-nova" onclick="event.stopPropagation();toggleSwitch('toggle-nova')"></div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+      <div class="form-group">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <label class="form-label" style="margin:0">Nutriments calculés</label>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-secondary btn-sm" onclick="setNutrientPreset('standard')">Standard</button>
+            <button class="btn btn-secondary btn-sm" onclick="setNutrientPreset('all')">Tout</button>
+          </div>
+        </div>
+        <div id="nutrient-groups"></div>
+        <div style="font-size:12px;color:var(--text-light);margin-top:8px;text-align:center" id="nutrient-count-label"></div>
+      </div>
+
+      <div class="divider"></div>
+      <div class="section-label">Options patient</div>
+      <div class="form-group">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div>
+            <label class="form-label" style="margin:0">Afficher le bilan au patient</label>
+            <div style="font-size:12px;color:var(--text-light);margin-top:3px">Désactivé = évite les biais comportementaux</div>
+          </div>
+          <div class="toggle" id="toggle-show-bilan" onclick="toggleSwitch('toggle-show-bilan')"></div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+      <div class="section-label">Message d'invitation</div>
+      <div class="form-group">
+        <label class="form-label">Message envoyé au patient avec son code</label>
+        <textarea class="form-input" id="invitation-message" rows="4"
+          placeholder="Bonjour, dans le cadre de notre étude, nous vous invitons à utiliser NutriScanResearch..."
+          style="resize:vertical;min-height:90px"></textarea>
+      </div>
+
+      <button class="btn btn-primary" onclick="startRecueil()" style="margin-top:8px;margin-bottom:32px">
+        Créer le projet
+      </button>
+    </div>
+  </div>
+
+
+  <!-- ============ SCREEN: CAMERA ============ -->
+  <div class="screen" id="screen-camera">
+    <div class="camera-overlay-top">
+      <div class="header-row">
+        <div class="back-btn" style="background:rgba(255,255,255,0.2); border-color:rgba(255,255,255,0.3);" onclick="stopCamera()">✕</div>
+        <div>
+          <div class="camera-meal-label">Petit-déjeuner — Mer 2 avr.</div>
+          <div class="camera-instructions">Cadrez votre assiette dans la mire</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="camera-container" id="camera-container">
+      <video id="camera-feed" class="camera-feed" autoplay playsinline></video>
+      <div class="camera-placeholder" id="camera-placeholder">
+        <div class="camera-placeholder-icon">📷</div>
+        <p>Caméra non disponible<br>dans l'aperçu</p>
+      </div>
+      <div class="mire">
+        <div class="mire-corner tl"></div>
+        <div class="mire-corner tr"></div>
+        <div class="mire-corner bl"></div>
+        <div class="mire-corner br"></div>
+        <div class="mire-label">CENTREZ L'ASSIETTE</div>
+      </div>
+    </div>
+
+    <div class="camera-controls">
+      <button class="cam-side-btn" onclick="showMealTypeModal()">🍽️</button>
+      <div class="shutter-btn" onclick="simulateCapture()">📸</div>
+      <button class="cam-side-btn">🔦</button>
+    </div>
+
+    <!-- Canvas caché pour la capture -->
+    <canvas id="snapshot-canvas" style="display:none"></canvas>
+  </div>
+
+  <!-- ============ SCREEN: AI ANALYSIS ============ -->
+  <div class="screen" id="screen-analysis">
+    <div class="header">
+      <div class="header-row">
+        <div class="back-btn" onclick="goTo('screen-camera')">←</div>
+        <h2>Analyse en cours…</h2>
+      </div>
+    </div>
+    <div class="content">
+      <div id="analysis-loading" class="loading-state">
+        <div class="spinner"></div>
+        <div class="loading-text">L'IA analyse votre repas…<br>Identification des aliments en cours</div>
+      </div>
+      <div id="analysis-results" style="display:none">
+        <!-- rempli dynamiquement -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ SCREEN: MEAL CONFIRMATION ============ -->
+  <div class="screen" id="screen-confirm">
+    <div class="header">
+      <div class="header-row">
+        <div class="back-btn" onclick="goTo('screen-analysis')">←</div>
+        <h2>Confirmer le repas</h2>
+      </div>
+    </div>
+    <div class="content">
+
+      <div class="alert alert-warning">
+        <span class="alert-icon">⚠️</span>
+        <span><strong>L'IA peut se tromper.</strong> Vérifiez chaque aliment identifié et corrigez si nécessaire avant de valider.</span>
+      </div>
+
+      <!-- Aliments identifiés -->
+      <div class="section-label">Aliments identifiés</div>
+
+      <!-- Aliments remplis dynamiquement par renderAnalysisResults() -->
+      <div id="foods-container"></div>
+
+      <button class="btn btn-secondary" style="margin-bottom:12px" onclick="addManualFood()">
+        ＋ Ajouter un aliment manquant
+      </button>
+
+      <div class="divider"></div>
+
+      <!-- Lieu du repas -->
+      <div class="form-group">
+        <label class="form-label">Lieu du repas</label>
+        <div class="lieu-grid" id="lieu-grid">
+          <div class="lieu-chip selected" onclick="selectLieu(this)">🏠 Domicile</div>
+          <div class="lieu-chip" onclick="selectLieu(this)">🏢 Travail</div>
+          <div class="lieu-chip" onclick="selectLieu(this)">🍽️ Restaurant</div>
+          <div class="lieu-chip" onclick="selectLieu(this)">🏫 Cantine</div>
+          <div class="lieu-chip" onclick="selectLieu(this)">🚗 Autre</div>
+        </div>
+      </div>
+
+      <!-- Repas inhabituel -->
+      <div class="form-group">
+        <div style="display:flex; align-items:center; justify-content:space-between;">
+          <label class="form-label" style="margin:0">Repas inhabituel ?</label>
+          <div class="toggle" id="toggle-inhabituel" onclick="toggleSwitch('toggle-inhabituel')"></div>
+        </div>
+        <div id="inhabituel-note" style="display:none; margin-top:10px;">
+          <input type="text" class="form-input" placeholder="Précisez (repas de fête, maladie, voyage…)" />
+        </div>
+      </div>
+
+      <!-- Heure réelle -->
+      <div class="form-group">
+        <label class="form-label">Heure du repas</label>
+        <input type="time" class="form-input" value="08:15" />
+      </div>
+
+      <button class="btn btn-primary" onclick="validateMeal()" style="margin-top:4px; margin-bottom:32px">
+        ✓ Valider ce repas
+      </button>
+
+    </div>
+  </div>
+
+  <!-- ============ SCREEN: SETTINGS ============ -->
+  <div class="screen" id="screen-settings">
+    <div class="header">
+      <div class="header-row">
+        <div class="back-btn" onclick="goTo('screen-home')">←</div>
+        <h2>Paramètres</h2>
+      </div>
+    </div>
+    <div class="content">
+
+      <div class="settings-section">
+        <div class="section-label">Notifications repas</div>
+        <div class="settings-row">
+          <div class="settings-row-left">
+            <div class="settings-icon">🌅</div>
+            <div>
+              <div class="settings-label">Petit-déjeuner</div>
+              <div class="settings-value">08:00</div>
+            </div>
+          </div>
+          <input type="time" value="08:00" style="border:none; background:transparent; font-family:'DM Sans',sans-serif; font-size:14px; color:var(--teal); font-weight:600; outline:none;" />
+        </div>
+        <div class="settings-row">
+          <div class="settings-row-left">
+            <div class="settings-icon">☀️</div>
+            <div>
+              <div class="settings-label">Déjeuner</div>
+              <div class="settings-value">12:30</div>
+            </div>
+          </div>
+          <input type="time" value="12:30" style="border:none; background:transparent; font-family:'DM Sans',sans-serif; font-size:14px; color:var(--teal); font-weight:600; outline:none;" />
+        </div>
+        <div class="settings-row">
+          <div class="settings-row-left">
+            <div class="settings-icon">🌙</div>
+            <div>
+              <div class="settings-label">Dîner</div>
+              <div class="settings-value">19:30</div>
+            </div>
+          </div>
+          <input type="time" value="19:30" style="border:none; background:transparent; font-family:'DM Sans',sans-serif; font-size:14px; color:var(--teal); font-weight:600; outline:none;" />
+        </div>
+        <div class="settings-row">
+          <div class="settings-row-left">
+            <div class="settings-icon">🍿</div>
+            <div>
+              <div class="settings-label">Rappel collation</div>
+              <div class="settings-value">Activé — 16:00</div>
+            </div>
+          </div>
+          <div class="toggle on" onclick="toggleSwitch(this)"></div>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <div class="section-label">Langue & Base alimentaire</div>
+        <div class="settings-row">
+          <div class="settings-row-left">
+            <div class="settings-icon">🌍</div>
+            <div>
+              <div class="settings-label">Langue</div>
+              <div class="settings-value">Français — CIQUAL</div>
+            </div>
+          </div>
+          <span class="settings-arrow">›</span>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <div class="section-label">Données & Exportation</div>
+        <div class="settings-row">
+          <div class="settings-row-left">
+            <div class="settings-icon">📤</div>
+            <div>
+              <div class="settings-label">Exporter les données</div>
+              <div class="settings-value">CSV / JSON</div>
+            </div>
+          </div>
+          <span class="settings-arrow">›</span>
+        </div>
+        <div class="settings-row">
+          <div class="settings-row-left">
+            <div class="settings-icon">🔑</div>
+            <div>
+              <div class="settings-label">Code accès chercheur</div>
+              <div class="settings-value">Configurer</div>
+            </div>
+          </div>
+          <span class="settings-arrow">›</span>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <div class="section-label">À propos</div>
+        <div class="settings-row">
+          <div class="settings-row-left">
+            <div class="settings-icon">ℹ️</div>
+            <div>
+              <div class="settings-label">NutriScanResearch v0.3.1</div>
+              <div class="settings-value">Prototype de recherche — CHU Poitiers</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+    <div class="bottom-nav">
+      <div class="nav-item" onclick="goTo('screen-home')">
+        <div class="nav-icon">🏠</div>
+        Accueil
+      </div>
+      <div class="nav-item active">
+        <div class="nav-icon">⚙️</div>
+        Paramètres
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ MODAL: SKIP MEAL ============ -->
+  <div class="modal-overlay" id="modal-skip" onclick="closeModal('modal-skip')">
+    <div class="modal" onclick="event.stopPropagation()">
+      <div class="modal-handle"></div>
+      <div class="modal-title">Repas sauté</div>
+      <div class="alert alert-info">
+        <span class="alert-icon">ℹ️</span>
+        <span>Cette information est importante pour le chercheur. Indiquez le repas concerné et si possible la raison.</span>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Repas sauté</label>
+        <select class="form-input">
+          <option>Petit-déjeuner</option>
+          <option>Déjeuner</option>
+          <option>Dîner</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Raison (optionnel)</label>
+        <input type="text" class="form-input" placeholder="ex. Pas faim, nausées, oubli…" />
+      </div>
+      <button class="btn btn-primary" onclick="closeModal('modal-skip')">Confirmer</button>
+    </div>
+  </div>
+
+  <!-- ============ MODAL: MEAL TYPE (camera) ============ -->
+  <div class="modal-overlay" id="modal-meal-type" onclick="closeModal('modal-meal-type')">
+    <div class="modal" onclick="event.stopPropagation()">
+      <div class="modal-handle"></div>
+      <div class="modal-title">Type de repas</div>
+      <div style="display:flex; flex-direction:column; gap:8px;">
+        <button class="btn btn-secondary" onclick="selectMealType('petit-dej')">🌅 Petit-déjeuner</button>
+        <button class="btn btn-secondary" onclick="selectMealType('dejeuner')">☀️ Déjeuner</button>
+        <button class="btn btn-secondary" onclick="selectMealType('diner')">🌙 Dîner</button>
+        <button class="btn btn-secondary" onclick="selectMealType('collation')">🍎 Collation / Grignotage</button>
+        <button class="btn btn-secondary" onclick="selectMealType('autre')">🕐 Repas inhabituel</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  // =============================================
+  // TOAST & LOADING UTILITIES
+  // =============================================
+  function showToast(msg, type = 'info', duration = 3000) {
+    const container = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    const icons = { success:'✓', error:'✕', info:'ℹ', warning:'⚠' };
+    toast.textContent = (icons[type] || '') + '  ' + msg;
+    container.appendChild(toast);
+    setTimeout(() => toast.remove(), duration);
+  }
+
+  function setBtnLoading(btnId, loading, originalHtml) {
+    const btn = document.getElementById(btnId);
+    if (!btn) return;
+    if (loading) {
+      btn.disabled = true;
+      btn.dataset.orig = btn.innerHTML;
+      btn.innerHTML = '<span class="btn-spinner"></span> Traitement…';
+    } else {
+      btn.disabled = false;
+      btn.innerHTML = originalHtml || btn.dataset.orig || btn.innerHTML;
+    }
+  }
+
+  function setActivationStep(step) {
+    for (let i = 1; i <= 3; i++) {
+      const s = document.getElementById(`act-step-${i}`);
+      const l = document.getElementById(`act-line-${i}`);
+      if (!s) continue;
+      s.className = 'step' + (i < step ? ' done' : i === step ? ' active' : '');
+      if (l) l.className = 'step-line' + (i < step ? ' done' : '');
+    }
+  }
+
+  function closeWelcome() {
+    document.getElementById('welcome-modal').classList.remove('active');
+  }
+
+  // =============================================
+  // SUPABASE CLIENT
+  // =============================================
+  const SUPABASE_URL = 'https://nhxrrfdwebfaoxyvnwes.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5oeHJyZmR3ZWJmYW94eXZud2VzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgyNTg1ODQsImV4cCI6MjA5MzgzNDU4NH0.Ekmpm6LvL6sIr-n1qnyad--XMgzyJBk-vWh_mLq_xTY';
+  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  let currentUser = null;
+  let currentProfile = null;
+
+  // =============================================
+  // INIT & SESSION
+  // =============================================
+  async function initApp() {
+    const { data: { session } } = await sb.auth.getSession();
+    if (session) {
+      currentUser = session.user;
+      await loadProfile();
+      routeByRole();
+    } else {
+      goTo('screen-splash');
+    }
+  }
+
+  async function loadProfile() {
+    const { data } = await sb.from('profiles').select('*').eq('id', currentUser.id).maybeSingle();
+    if (!data) {
+      // Profil manquant — créer automatiquement en tant qu'investigateur (ne devrait pas arriver pour un patient)
+      const { data: created } = await sb.from('profiles').insert({
+        id: currentUser.id,
+        role: 'investigateur',
+        prenom: '',
+        nom: currentUser.email.split('@')[0]
+      }).select().single();
+      currentProfile = created;
+    } else {
+      currentProfile = data;
+    }
+  }
+
+  async function routeByRole() {
+    if (!currentProfile) { goTo('screen-splash'); return; }
+    if (currentProfile.role === 'investigateur') {
+      const name = [currentProfile.prenom, currentProfile.nom].filter(Boolean).join(' ') || currentUser.email;
+      document.getElementById('investigator-name').textContent = name;
+      await loadProjects();
+      goTo('screen-home');
+    } else {
+      // Charger le projet du patient
+      const { data: pp } = await sb.from('project_patients')
+        .select('project_id, projects(name, config)')
+        .eq('patient_id', currentProfile.id).maybeSingle();
+      if (pp) {
+        document.getElementById('patient-project-tag').textContent = 'PROJET ' + pp.projects.name.toUpperCase();
+        currentProject = pp.project_id;
+        if (pp.projects.config?.showBilan) document.getElementById('patient-bilan').style.display = 'block';
+      }
+      document.getElementById('patient-greeting').textContent =
+        'Bonjour' + (currentProfile.prenom ? ', ' + currentProfile.prenom : '') + ' !';
+      // Si profil incomplet → écran profil
+      if (!currentProfile.profile_complete) {
+        showToast('Bienvenue ! Complétez votre profil pour commencer.', 'info', 4000);
+        goTo('screen-patient-profile');
+      } else {
+        await loadPatientMeals();
+        // Afficher le message de bienvenue si premier login du jour
+        const lastWelcome = localStorage.getItem('nsr_welcome_shown');
+        const today = new Date().toDateString();
+        if (lastWelcome !== today) {
+          localStorage.setItem('nsr_welcome_shown', today);
+          document.getElementById('welcome-modal').classList.add('active');
+        }
+        goTo('screen-patient-home');
+      }
+    }
+  }
+
+  // =============================================
+  // AUTHENTIFICATION
+  // =============================================
+  async function doLogin() {
+    const email = document.getElementById('login-email').value.trim();
+    const pwd = document.getElementById('login-password').value;
+    const errEl = document.getElementById('login-error');
+    const errMsg = document.getElementById('login-error-msg');
+    errEl.style.display = 'none';
+
+    setBtnLoading('btn-login', true);
+    const { data, error } = await sb.auth.signInWithPassword({ email, password: pwd });
+    if (error) {
+      errEl.style.display = 'flex';
+      errMsg.textContent = 'Email ou mot de passe incorrect.';
+      setBtnLoading('btn-login', false, 'Se connecter');
+      return;
+    }
+    showToast('Connexion réussie ✓', 'success');
+    currentUser = data.user;
+    await loadProfile();
+    setBtnLoading('btn-login', false, 'Se connecter');
+    await routeByRole();
+  }
+
+  async function doSignup() {
+    const prenom = document.getElementById('signup-prenom').value.trim();
+    const nom = document.getElementById('signup-nom').value.trim();
+    const email = document.getElementById('signup-email').value.trim();
+    const pwd = document.getElementById('signup-pwd').value;
+    const errEl = document.getElementById('signup-error');
+    const errMsg = document.getElementById('signup-error-msg');
+    const successEl = document.getElementById('signup-success');
+    errEl.style.display = 'none';
+
+    if (pwd.length < 8) { errMsg.textContent = 'Mot de passe trop court (8 caractères min).'; errEl.style.display = 'flex'; return; }
+
+    const { data, error } = await sb.auth.signUp({ email, password: pwd });
+    if (error) { errMsg.textContent = error.message; errEl.style.display = 'flex'; return; }
+
+    await sb.from('profiles').insert({ id: data.user.id, role: 'investigateur', prenom, nom });
+    successEl.style.display = 'flex';
+  }
+
+  async function doActivate() {
+    const code = document.getElementById('activate-code').value.trim().toUpperCase();
+    const email = document.getElementById('activate-email').value.trim().toLowerCase();
+    const pwd = document.getElementById('activate-pwd').value;
+    const pwd2 = document.getElementById('activate-pwd2').value;
+    const errEl = document.getElementById('activate-error');
+    const errMsg = document.getElementById('activate-error-msg');
+    errEl.style.display = 'none';
+
+    if (!code) { errMsg.textContent = 'Veuillez saisir votre code d\'activation.'; errEl.style.display = 'flex'; return; }
+    if (!email) { errMsg.textContent = 'Veuillez saisir votre adresse e-mail.'; errEl.style.display = 'flex'; return; }
+    if (pwd.length < 8) { errMsg.textContent = 'Mot de passe trop court (8 caractères min).'; errEl.style.display = 'flex'; return; }
+    if (pwd !== pwd2) { errMsg.textContent = 'Les mots de passe ne correspondent pas.'; errEl.style.display = 'flex'; return; }
+
+    setBtnLoading('btn-activate', true);
+    setActivationStep(1);
+
+    try {
+      // Étape 1 : Valider le token
+      const { data: token, error: tokenErr } = await sb.from('activation_tokens')
+        .select('*').eq('token', code).single();
+
+      if (tokenErr || !token) {
+        errMsg.textContent = 'Code d\'activation invalide.'; errEl.style.display = 'flex';
+        setBtnLoading('btn-activate', false, 'Activer mon compte'); return;
+      }
+      if (token.used) {
+        errMsg.textContent = 'Ce code a déjà été utilisé. Si c\'est vous, connectez-vous directement.';
+        errEl.style.display = 'flex';
+        setBtnLoading('btn-activate', false, 'Activer mon compte'); return;
+      }
+      if (token.email && token.email !== email) {
+        errMsg.textContent = 'L\'adresse e-mail ne correspond pas à ce code.';
+        errEl.style.display = 'flex';
+        setBtnLoading('btn-activate', false, 'Activer mon compte'); return;
+      }
+      if (new Date(token.expires_at) < new Date()) {
+        errMsg.textContent = 'Ce code a expiré. Demandez un nouveau code à votre investigateur.';
+        errEl.style.display = 'flex';
+        setBtnLoading('btn-activate', false, 'Activer mon compte'); return;
+      }
+
+      setActivationStep(2);
+      showToast('Code valide ✓', 'success');
+
+      // Étape 2 : Créer le compte
+      const { data: signUpData, error: signUpErr } = await sb.auth.signUp({ email, password: pwd });
+      if (signUpErr) {
+        errMsg.textContent = signUpErr.message; errEl.style.display = 'flex';
+        setBtnLoading('btn-activate', false, 'Activer mon compte'); return;
+      }
+
+      const userId = signUpData.user?.id;
+      if (!userId) {
+        errMsg.textContent = 'Erreur lors de la création du compte. Réessayez.';
+        errEl.style.display = 'flex';
+        setBtnLoading('btn-activate', false, 'Activer mon compte'); return;
+      }
+
+      showToast('Compte créé ✓', 'success');
+
+      // Étape 3 : Créer le profil et lier au projet
+      await sb.from('profiles').insert({ id: userId, role: 'patient', prenom: '', nom: '' });
+      await sb.from('project_patients').insert({ project_id: token.project_id, patient_id: userId });
+      await sb.from('activation_tokens').update({ used: true }).eq('id', token.id);
+
+      setActivationStep(3);
+      showToast('Compte activé ! Connexion en cours…', 'success');
+
+      // Connexion automatique
+      const { data: signInData, error: signInErr } = await sb.auth.signInWithPassword({ email, password: pwd });
+      if (signInErr) {
+        // Compte créé mais connexion auto échouée → rediriger vers login
+        showToast('Compte créé. Connectez-vous maintenant.', 'info');
+        setTimeout(() => goTo('screen-login'), 1500);
+        setBtnLoading('btn-activate', false, 'Activer mon compte'); return;
+      }
+
+      currentUser = signInData.user;
+      await loadProfile();
+      setBtnLoading('btn-activate', false, 'Activer mon compte');
+      routeByRole();
+
+    } catch(e) {
+      errMsg.textContent = 'Erreur inattendue : ' + e.message;
+      errEl.style.display = 'flex';
+      setBtnLoading('btn-activate', false, 'Activer mon compte');
+    }
+  }
+
+  async function logout() {
+    await sb.auth.signOut();
+    currentUser = null; currentProfile = null;
+    goTo('screen-splash');
+  }
+
+  function loadDemo() { goTo('screen-login'); }
+  function formatCode(input) {
+    let v = input.value.replace(/[^A-Z0-9]/gi,'').toUpperCase();
+    if (v.length > 2) v = v.slice(0,2) + '-' + v.slice(2);
+    if (v.length > 7) v = v.slice(0,7) + '-' + v.slice(7);
+    input.value = v.slice(0,14);
+  }
+
+  // =============================================
+  // PROJETS
+  // =============================================
+  let currentProject = null;
+
+  async function loadProjects() {
+    const { data: projects } = await sb.from('projects')
+      .select('*, project_patients(count)')
+      .eq('investigateur_id', currentProfile.id)
+      .eq('active', true)
+      .order('created_at', { ascending: false });
+
+    const list = document.getElementById('projects-list');
+    if (!projects || projects.length === 0) {
+      list.innerHTML = '<div class="empty-state"><div class="empty-icon">📋</div><p>Aucun projet pour l\'instant.<br>Créez votre premier projet.</p></div>';
+      return;
+    }
+    const typeLabels = { '24h':'Rappel 24h', '72h':'Rappel 72h', '7j':'Rappel 7 jours', 'custom':'Personnalisé' };
+    list.innerHTML = projects.map(p => `
+      <div class="project-card" onclick="openProject('${p.id}', '${p.name}')">
+        <div class="project-card-top">
+          <div class="project-card-name">${p.name}</div>
+          <div class="recueil-badge">En cours</div>
+        </div>
+        <div class="project-card-meta">${typeLabels[p.type]||p.type} · ${p.project_patients?.[0]?.count||0} patient(s)</div>
+      </div>`).join('');
+  }
+
+  async function startRecueil() {
+    if (!currentProfile) { alert('Session expirée. Veuillez vous reconnecter.'); goTo('screen-login'); return; }
+    const name = document.getElementById('recueil-name-input').value.trim();
+    if (!name) { alert('Veuillez donner un nom au projet.'); return; }
+
+    const config = {
+      databases: activeDatabases,
+      nutrients: Array.from(selectedNutrients),
+      showBilan: document.getElementById('toggle-show-bilan')?.classList.contains('on') || false,
+      nutriscore: document.getElementById('toggle-nutriscore')?.classList.contains('on'),
+      nova: document.getElementById('toggle-nova')?.classList.contains('on'),
+      notification_times: {
+        matin: document.getElementById('notif-matin')?.value || '08:00',
+        midi: document.getElementById('notif-midi')?.value || '12:30',
+        soir: document.getElementById('notif-soir')?.value || '19:30',
+        collation: document.getElementById('notif-collation')?.value || '16:00'
+      }
+    };
+
+    const customDays = document.getElementById('custom-days')?.value;
+    const { data, error } = await sb.from('projects').insert({
+      investigateur_id: currentProfile.id,
+      name,
+      type: selectedType,
+      duration_days: customDays ? parseInt(customDays) : null,
+      start_date: document.getElementById('project-start-date')?.value || null,
+      access_duration_days: parseInt(document.getElementById('project-access-duration')?.value) || 30,
+      invitation_message: document.getElementById('invitation-message')?.value || null,
+      config
+    }).select().single();
+
+    if (error) { alert('Erreur : ' + error.message); return; }
+    showToast('Projet créé ✓', 'success');
+    await loadProjects();
+    openProject(data.id, data.name);
+  }
+
+  let currentProjectName = '';
+
+  async function openProject(projectId, projectName) {
+    currentProject = projectId;
+    currentProjectName = projectName;
+    document.getElementById('project-detail-name').textContent = projectName;
+    const { data: proj } = await sb.from('projects').select('type, config').eq('id', projectId).single();
+    const { count } = await sb.from('project_patients').select('*', { count: 'exact', head: true }).eq('project_id', projectId);
+    const typeLabels = { '24h':'R24H', '72h':'R72H', '5j':'5 jours', '7j':'7 jours', 'custom':'Personnalisé' };
+    document.getElementById('project-detail-meta').textContent =
+      (typeLabels[proj?.type] || proj?.type || '') + ' · ' + (count || 0) + ' patient(s)';
+    await renderPatientsList(projectId);
+    renderDataTab(projectId);
+    switchTab('patients');
+    goTo('screen-project');
+  }
+
+  async function renderPatientsList(projectId) {
+    const { data: links } = await sb.from('project_patients')
+      .select('patient_id, profiles(prenom, nom), joined_at')
+      .eq('project_id', projectId);
+
+    const { data: tokens } = await sb.from('activation_tokens')
+      .select('*').eq('project_id', projectId).eq('used', false);
+
+    const activeHtml = (links || []).map(l => `
+      <div class="patient-row">
+        <div class="patient-avatar">${(l.profiles?.prenom||'?')[0]}</div>
+        <div class="patient-info">
+          <div class="patient-name">${l.profiles?.prenom||''} ${l.profiles?.nom||''}</div>
+          <div class="patient-status"><span class="status-dot active"></span>Compte activé</div>
+        </div>
+        <div style="font-size:20px">✓</div>
+      </div>`).join('');
+
+    const pendingHtml = (tokens || []).map(t => `
+      <div class="patient-row">
+        <div class="patient-avatar" style="background:var(--amber-light);color:var(--amber)">?</div>
+        <div class="patient-info">
+          <div class="patient-name">${t.email}</div>
+          <div class="patient-status"><span class="status-dot pending"></span>En attente · Code : <strong>${t.token}</strong></div>
+        </div>
+        <div style="font-size:20px">⏳</div>
+      </div>`).join('');
+
+    document.getElementById('patients-list').innerHTML =
+      `<button class="btn btn-primary" style="margin-bottom:16px" onclick="showAddPatientModal()">+ Ajouter un patient</button>` +
+      activeHtml + pendingHtml ||
+      '<p style="color:var(--text-light);font-size:13px">Aucun patient encore.</p>';
+  }
+
+  async function generatePatientToken() {
+    const name = document.getElementById('new-patient-name').value.trim();
+    const email = document.getElementById('new-patient-email').value.trim().toLowerCase();
+    const projectId = document.getElementById('new-patient-project').value;
+    if (!name || !email) { alert('Veuillez renseigner le prénom et l\'e-mail.'); return; }
+
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    const token = 'NR-' + new Date().getFullYear() + '-' +
+      Array.from({length:6}, () => chars[Math.floor(Math.random()*chars.length)]).join('');
+    const expires = new Date(); expires.setDate(expires.getDate() + 7);
+
+    const { error } = await sb.from('activation_tokens').insert({
+      token, project_id: projectId || currentProject,
+      email, expires_at: expires.toISOString()
+    });
+
+    if (error) { showToast('Erreur lors de la génération du code.', 'error'); return; }
+    showToast("Code invitation généré ✓", "success");
+
+    // Récupérer le message d'invitation du projet
+    const { data: proj } = await sb.from('projects').select('name, invitation_message').eq('id', projectId || currentProject).single();
+    window._pendingInvitation = { token, email, name, project: proj };
+
+    document.getElementById('generated-token-display').textContent = token;
+    document.getElementById('generated-token-box').style.display = 'block';
+    document.getElementById('add-patient-form').style.display = 'none';
+  }
+
+  function sendInvitationEmail() {
+    const inv = window._pendingInvitation;
+    if (!inv) return;
+    const subject = encodeURIComponent(`Invitation à participer à l'étude ${inv.project?.name || ''} - NutriScanResearch`);
+    const appUrl = window.location.origin + window.location.pathname;
+    const defaultMsg = inv.project?.invitation_message ||
+      `Bonjour ${inv.name},\n\nNous vous invitons à participer à notre étude nutritionnelle via NutriScanResearch.\n\n`;
+    const body = encodeURIComponent(
+      `${defaultMsg}\n\nVotre code d'activation : ${inv.token}\n\nPour activer votre compte, rendez-vous sur :\n${appUrl}\n\nCliquez sur "Activer mon compte" et saisissez ce code.\n\nCordialement`
+    );
+    window.location.href = `mailto:${inv.email}?subject=${subject}&body=${body}`;
+  }
+
+  async function showAddPatientModal() {
+    document.getElementById('generated-token-box').style.display = 'none';
+    document.getElementById('add-patient-form').style.display = 'block';
+    document.getElementById('add-patient-form-btns').style.display = 'block';
+    document.getElementById('new-patient-name').value = '';
+    document.getElementById('new-patient-email').value = '';
+
+    const sel = document.getElementById('new-patient-project');
+    sel.innerHTML = '<option value="">Chargement…</option>';
+
+    // Charger TOUS les projets de l'investigateur avant d'ouvrir la modal
+    try {
+      const { data, error } = await sb.from('projects')
+        .select('id, name')
+        .eq('investigateur_id', currentProfile.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      if (data && data.length > 0) {
+        sel.innerHTML = data.map(p =>
+          `<option value="${p.id}"${p.id === currentProject ? ' selected' : ''}>${p.name}</option>`
+        ).join('');
+      } else {
+        sel.innerHTML = '<option value="">Aucun projet disponible</option>';
+      }
+    } catch(e) {
+      // Fallback sur le projet courant si la requête échoue
+      sel.innerHTML = currentProject
+        ? `<option value="${currentProject}" selected>${currentProjectName}</option>`
+        : '<option value="">Erreur de chargement</option>';
+    }
+
+    document.getElementById('modal-add-patient').classList.add('active');
+  }
+
+  async function renderDataTab(projectId) {
+    const { data: meals } = await sb.from('meals')
+      .select('patient_id, profiles(prenom), foods(kcal:per100g->kcal, quantite_g)')
+      .eq('project_id', projectId);
+    // Aperçu simplifié
+    document.getElementById('data-list').innerHTML = meals?.length
+      ? '<p style="font-size:13px;color:var(--text-mid)">' + meals.length + ' repas enregistrés au total.</p>'
+      : '<p style="font-size:13px;color:var(--text-light)">Aucun repas enregistré pour l\'instant.</p>';
+  }
+
+  // =============================================
+  // PROFIL PATIENT
+  // =============================================
+  function updateAge() {
+    const dob = document.getElementById('profile-dob')?.value;
+    if (!dob) return;
+    const age = Math.floor((new Date() - new Date(dob)) / (365.25 * 24 * 3600 * 1000));
+    document.getElementById('profile-age').textContent = age + ' ans';
+  }
+
+  function updateIMC() {
+    const poids = parseFloat(document.getElementById('profile-poids')?.value);
+    const taille = parseFloat(document.getElementById('profile-taille')?.value);
+    if (!poids || !taille) return;
+    const imc = (poids / Math.pow(taille / 100, 2)).toFixed(1);
+    let label = '';
+    if (imc < 18.5) label = 'Insuffisance pondérale';
+    else if (imc < 25) label = 'Poids normal';
+    else if (imc < 30) label = 'Surpoids';
+    else if (imc < 35) label = 'Obésité modérée';
+    else label = 'Obésité sévère';
+    document.getElementById('imc-value').textContent = imc;
+    document.getElementById('imc-label').textContent = label;
+    document.getElementById('imc-display').style.display = 'block';
+  }
+
+  function toggleAllergy(el) {
+    el.classList.toggle('selected');
+  }
+
+  async function savePatientProfile() {
+    const allergies = Array.from(document.querySelectorAll('#allergies-grid .lieu-chip.selected'))
+      .map(el => el.dataset.allergy);
+    const autresAllergies = document.getElementById('profile-autres-allergies')?.value.trim();
+    if (autresAllergies) allergies.push(autresAllergies);
+
+    const updates = {
+      prenom: document.getElementById('profile-prenom')?.value.trim(),
+      nom: document.getElementById('profile-nom')?.value.trim(),
+      date_naissance: document.getElementById('profile-dob')?.value || null,
+      poids: parseFloat(document.getElementById('profile-poids')?.value) || null,
+      taille: parseInt(document.getElementById('profile-taille')?.value) || null,
+      tour_de_taille: parseFloat(document.getElementById('profile-tour-taille')?.value) || null,
+      allergies,
+      regime: document.getElementById('profile-regime')?.value || 'omnivore',
+      profile_complete: true
+    };
+
+    const { error } = await sb.from('profiles').update(updates).eq('id', currentProfile.id);
+    if (error) { alert('Erreur : ' + error.message); return; }
+    currentProfile = { ...currentProfile, ...updates };
+    showToast('Profil enregistré ✓', 'success');
+    document.getElementById('patient-greeting').textContent = 'Bonjour, ' + (updates.prenom || '') + ' !';
+    document.getElementById('investigator-name').textContent = (updates.prenom || '') + ' ' + (updates.nom || '');
+    await loadPatientMeals();
+    goTo('screen-patient-home');
+  }
+
+  // =============================================
+  // REPAS PATIENT — CHARGEMENT
+  // =============================================
+  async function loadPatientMeals() {
+    const today = new Date().toISOString().split('T')[0];
+    const { data: meals } = await sb.from('meals')
+      .select('*, foods(nom, emoji, quantite_g, per100g)')
+      .eq('patient_id', currentProfile.id)
+      .gte('meal_time', today + 'T00:00:00')
+      .order('meal_time', { ascending: true });
+
+    const count = meals?.filter(m => !m.skipped).length || 0;
+    const el = document.getElementById('patient-meal-count');
+    if (el) el.textContent = count;
+
+    const list = document.getElementById('patient-meals-list');
+    if (!list) return;
+
+    if (!meals || meals.length === 0) {
+      list.innerHTML = `<div class="empty-state"><div class="empty-icon">🍽️</div><p>Aucun repas enregistré aujourd'hui.<br>Photographiez ou saisissez votre premier repas.</p></div>`;
+      return;
+    }
+
+    const mealIcons = { 'petit-dej':'🌅','dejeuner':'☀️','diner':'🌙','collation':'🍎','autre':'🕐' };
+    const mealLabels = { 'petit-dej':'Petit-déjeuner','dejeuner':'Déjeuner','diner':'Dîner','collation':'Collation','autre':'Repas' };
+    const mealClasses = { 'petit-dej':'matin','dejeuner':'midi','diner':'soir','collation':'autre','autre':'autre' };
+
+    let totalKcal = 0, totalProt = 0, totalLip = 0, totalGluc = 0;
+
+    list.innerHTML = meals.map(m => {
+      if (m.skipped) return `
+        <div class="meal-item" style="opacity:0.6">
+          <div class="meal-time-badge autre">⊘</div>
+          <div class="meal-info">
+            <div class="meal-title">${mealLabels[m.meal_type]||'Repas'} sauté</div>
+            <div class="meal-sub">${m.skip_reason || ''}</div>
+          </div>
+        </div>`;
+
+      const kcal = m.foods?.reduce((s, f) => {
+        const v = f.per100g?.kcal ? Math.round(f.per100g.kcal * (f.quantite_g||100) / 100) : 0;
+        totalKcal += v; return s + v;
+      }, 0) || 0;
+      m.foods?.forEach(f => {
+        totalProt += f.per100g?.prot ? Math.round(f.per100g.prot * (f.quantite_g||100) / 100 * 10) / 10 : 0;
+        totalLip += f.per100g?.lip ? Math.round(f.per100g.lip * (f.quantite_g||100) / 100 * 10) / 10 : 0;
+        totalGluc += f.per100g?.gluc ? Math.round(f.per100g.gluc * (f.quantite_g||100) / 100 * 10) / 10 : 0;
+      });
+      const time = m.meal_time ? new Date(m.meal_time).toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit'}) : '';
+      const foodsPreview = m.foods?.slice(0,3).map(f => f.emoji||'🍽').join(' ') || '';
+      return `
+        <div class="meal-item">
+          <div class="meal-time-badge ${mealClasses[m.meal_type]||'autre'}">${mealIcons[m.meal_type]||'🕐'}</div>
+          <div class="meal-info">
+            <div class="meal-title">${mealLabels[m.meal_type]||'Repas'}</div>
+            <div class="meal-sub">${time}${m.location?' · '+m.location:''} ${foodsPreview}</div>
+          </div>
+          <div class="meal-kcal">${kcal} kcal</div>
+        </div>`;
+    }).join('');
+
+    // Mettre à jour le bilan
+    if (document.getElementById('bilan-kcal')) {
+      document.getElementById('bilan-kcal').textContent = totalKcal;
+      document.getElementById('bilan-prot').textContent = totalProt + 'g';
+      document.getElementById('bilan-lip').textContent = totalLip + 'g';
+      document.getElementById('bilan-gluc').textContent = totalGluc + 'g';
+    }
+  }
+
+  // =============================================
+  // SAISIE MANUELLE DE REPAS
+  // =============================================
+  function showManualMealModal() {
+    document.getElementById('manual-meal-input').value = '';
+    document.getElementById('manual-meal-loading').style.display = 'none';
+    document.getElementById('btn-analyze-manual').style.display = 'block';
+    document.getElementById('modal-manual-meal').classList.add('active');
+  }
+
+  async function analyzeManualMeal() {
+    const text = document.getElementById('manual-meal-input').value.trim();
+    if (!text) return;
+    document.getElementById('manual-meal-loading').style.display = 'flex';
+    document.getElementById('btn-analyze-manual').style.display = 'none';
+    closeModal('modal-manual-meal');
+    goTo('screen-analysis');
+
+    capturedImageBase64 = null;
+    const prompt = buildPrompt() + `\n\n(SAISIE MANUELLE — pas de photo. Description du repas : "${text}". Identifie chaque aliment mentionné ou implicite.)`;
+
+    try {
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 2000,
+          messages: [{ role: 'user', content: prompt }]
+        })
+      });
+      const data = await response.json();
+      const clean = data.content[0].text.replace(/```json|```/g, '').trim();
+      const parsed = JSON.parse(clean);
+      identifiedAliments = parsed.aliments.map((a, i) => ({ ...a, idx: i }));
+      document.getElementById('analysis-loading').style.display = 'none';
+      renderConfirmScreen();
+      goTo('screen-confirm');
+    } catch(err) {
+      document.getElementById('analysis-loading').style.display = 'none';
+      document.getElementById('analysis-results').style.display = 'block';
+      document.getElementById('analysis-results').innerHTML = `<div class="alert alert-danger"><span class="alert-icon">❌</span><span>Erreur : ${err.message}</span></div><button class="btn btn-primary" onclick="goTo('screen-patient-home')">Retour</button>`;
+    }
+  }
+
+  // =============================================
+  // VALIDATION ET SAUVEGARDE D'UN REPAS
+  // =============================================
+  async function validateMeal() {
+    const lieu = document.querySelector('.lieu-chip.selected')?.textContent.trim() || null;
+    const unusual = document.getElementById('toggle-inhabituel')?.classList.contains('on') || false;
+    const unusualNote = document.getElementById('inhabituel-note')?.querySelector('input')?.value || null;
+    const timeInput = document.querySelector('#screen-confirm input[type="time"]')?.value;
+    const mealTime = timeInput
+      ? new Date().toISOString().split('T')[0] + 'T' + timeInput + ':00'
+      : new Date().toISOString();
+
+    const { data: meal, error } = await sb.from('meals').insert({
+      patient_id: currentProfile.id,
+      project_id: currentProject,
+      meal_type: currentMealType || 'autre',
+      location: lieu,
+      unusual, unusual_note: unusualNote,
+      meal_time: mealTime
+    }).select().single();
+
+    if (!error && meal) {
+      const foods = identifiedAliments.filter(Boolean).map(a => ({
+        meal_id: meal.id,
+        nom: a.nom, db_nom: a.db_nom, source: a.source, emoji: a.emoji,
+        quantite_g: parseFloat(document.getElementById(`qty-${a.idx}`)?.value) || a.quantite_g,
+        nutriscore: a.nutriscore || null,
+        nova: a.nova || null,
+        per100g: a.per100g
+      }));
+      if (foods.length) await sb.from('foods').insert(foods);
+    }
+
+    identifiedAliments = [];
+    showToast('Repas enregistré ✓', 'success');
+    await loadPatientMeals();
+    // Retourner vers l'écran approprié
+    if (currentProfile.role === 'patient') goTo('screen-patient-home');
+    else goTo('screen-home');
+  }
+
+  let currentMealType = 'autre';
+  // =============================================
+  // UI HELPERS
+  // =============================================
+  function switchTab(tab) {
+    ['patients','config','data'].forEach(t => {
+      document.getElementById('tab-' + t).classList.toggle('active', t === tab);
+      document.getElementById('tabcontent-' + t).style.display = t === tab ? 'block' : 'none';
+    });
+  }
+
+  // =============================================
+  // DÉFINITION DES NUTRIMENTS (CIQUAL 2025 + USDA)
+  // =============================================
+  const NUTRIENT_GROUPS = [
+    { id: 'energie', label: 'Énergie', nutrients: [
+      { id: 'kcal', label: 'Énergie (kcal)', unit: 'kcal', standard: true },
+      { id: 'kj',   label: 'Énergie (kJ)',   unit: 'kJ',   standard: false },
+    ]},
+    { id: 'macro', label: 'Macronutriments', nutrients: [
+      { id: 'eau',    label: 'Eau',      unit: 'g', standard: false },
+      { id: 'prot',   label: 'Protéines',unit: 'g', standard: true  },
+      { id: 'gluc',   label: 'Glucides', unit: 'g', standard: true  },
+      { id: 'sucres', label: 'Sucres',   unit: 'g', standard: true  },
+      { id: 'amidon', label: 'Amidon',   unit: 'g', standard: false },
+      { id: 'fibres', label: 'Fibres',   unit: 'g', standard: true  },
+      { id: 'lip',    label: 'Lipides',  unit: 'g', standard: true  },
+      { id: 'alcool', label: 'Alcool',   unit: 'g', standard: false },
+    ]},
+    { id: 'ag', label: 'Acides gras', nutrients: [
+      { id: 'ag_sat',   label: 'AG saturés',       unit: 'g',  standard: true  },
+      { id: 'ag_mono',  label: 'AG monoinsaturés',  unit: 'g',  standard: false },
+      { id: 'ag_poly',  label: 'AG polyinsaturés',  unit: 'g',  standard: false },
+      { id: 'omega3',   label: 'Oméga-3',           unit: 'g',  standard: true  },
+      { id: 'omega6',   label: 'Oméga-6',           unit: 'g',  standard: false },
+      { id: 'ag_trans', label: 'AG trans',           unit: 'g',  standard: false },
+      { id: 'cholesterol', label: 'Cholestérol',    unit: 'mg', standard: false },
+    ]},
+    { id: 'mineraux', label: 'Minéraux', nutrients: [
+      { id: 'sel',  label: 'Sel (NaCl)',   unit: 'g',  standard: true  },
+      { id: 'ca',   label: 'Calcium',      unit: 'mg', standard: true  },
+      { id: 'mg',   label: 'Magnésium',    unit: 'mg', standard: true  },
+      { id: 'k',    label: 'Potassium',    unit: 'mg', standard: true  },
+      { id: 'p',    label: 'Phosphore',    unit: 'mg', standard: false },
+      { id: 'na',   label: 'Sodium',       unit: 'mg', standard: false },
+      { id: 'fe',   label: 'Fer',          unit: 'mg', standard: true  },
+      { id: 'zn',   label: 'Zinc',         unit: 'mg', standard: true  },
+      { id: 'cu',   label: 'Cuivre',       unit: 'mg', standard: false },
+      { id: 'mn',   label: 'Manganèse',    unit: 'mg', standard: false },
+      { id: 'se',   label: 'Sélénium',     unit: 'µg', standard: false },
+      { id: 'iode', label: 'Iode',         unit: 'µg', standard: false },
+      { id: 'cr',   label: 'Chrome',       unit: 'µg', standard: false },
+      { id: 'fluor',label: 'Fluor',        unit: 'mg', standard: false },
+      { id: 'cl',   label: 'Chlore',       unit: 'mg', standard: false },
+    ]},
+    { id: 'vitamines', label: 'Vitamines', nutrients: [
+      { id: 'vitA',  label: 'Vit. A (Rétinol)',   unit: 'µg', standard: false },
+      { id: 'betaC', label: 'Bêta-carotène',       unit: 'µg', standard: false },
+      { id: 'vitD',  label: 'Vit. D',              unit: 'µg', standard: true  },
+      { id: 'vitE',  label: 'Vit. E',              unit: 'mg', standard: false },
+      { id: 'vitK1', label: 'Vit. K1',             unit: 'µg', standard: false },
+      { id: 'vitK2', label: 'Vit. K2',             unit: 'µg', standard: false },
+      { id: 'vitC',  label: 'Vit. C',              unit: 'mg', standard: true  },
+      { id: 'vitB1', label: 'Vit. B1 (Thiamine)',  unit: 'mg', standard: false },
+      { id: 'vitB2', label: 'Vit. B2 (Riboflavine)',unit:'mg', standard: false },
+      { id: 'vitB3', label: 'Vit. B3 (Niacine)',   unit: 'mg', standard: false },
+      { id: 'vitB5', label: 'Vit. B5',             unit: 'mg', standard: false },
+      { id: 'vitB6', label: 'Vit. B6',             unit: 'mg', standard: false },
+      { id: 'vitB8', label: 'Vit. B8 (Biotine)',   unit: 'µg', standard: false },
+      { id: 'folates',label:'Vit. B9 (Folates)',   unit: 'µg', standard: true  },
+      { id: 'vitB12',label: 'Vit. B12',            unit: 'µg', standard: true  },
+    ]},
+    { id: 'sucres_ind', label: 'Sucres individuels', nutrients: [
+      { id: 'fructose',  label: 'Fructose',  unit: 'g', standard: false },
+      { id: 'glucose',   label: 'Glucose',   unit: 'g', standard: false },
+      { id: 'saccharose',label: 'Saccharose',unit: 'g', standard: false },
+      { id: 'lactose',   label: 'Lactose',   unit: 'g', standard: false },
+      { id: 'maltose',   label: 'Maltose',   unit: 'g', standard: false },
+      { id: 'galactose', label: 'Galactose', unit: 'g', standard: false },
+    ]},
+    { id: 'usda_extra', label: 'Supplémentaires (USDA)', nutrients: [
+      { id: 'lycopene',   label: 'Lycopène',      unit: 'µg', standard: false, usdaOnly: true },
+      { id: 'luteine',    label: 'Lutéine',        unit: 'µg', standard: false, usdaOnly: true },
+      { id: 'betainos',   label: 'Bêtaïne',        unit: 'mg', standard: false, usdaOnly: true },
+      { id: 'choline',    label: 'Choline',         unit: 'mg', standard: false, usdaOnly: true },
+      { id: 'taurine',    label: 'Taurine',         unit: 'mg', standard: false, usdaOnly: true },
+      { id: 'phytosterols',label:'Phytostérols',    unit: 'mg', standard: false, usdaOnly: true },
+      // Acides aminés
+      { id: 'trp', label: 'Tryptophane', unit: 'mg', standard: false, usdaOnly: true },
+      { id: 'leu', label: 'Leucine',     unit: 'mg', standard: false, usdaOnly: true },
+      { id: 'ile', label: 'Isoleucine',  unit: 'mg', standard: false, usdaOnly: true },
+      { id: 'lys', label: 'Lysine',      unit: 'mg', standard: false, usdaOnly: true },
+      { id: 'val', label: 'Valine',      unit: 'mg', standard: false, usdaOnly: true },
+      { id: 'met', label: 'Méthionine',  unit: 'mg', standard: false, usdaOnly: true },
+      { id: 'phe', label: 'Phénylalanine',unit:'mg', standard: false, usdaOnly: true },
+      { id: 'thr', label: 'Thréonine',   unit: 'mg', standard: false, usdaOnly: true },
+      { id: 'his', label: 'Histidine',   unit: 'mg', standard: false, usdaOnly: true },
+    ]},
+  ];
+
+  // Sélection courante (ids)
+  let selectedNutrients = new Set(
+    NUTRIENT_GROUPS.flatMap(g => g.nutrients.filter(n => n.standard).map(n => n.id))
+  );
+  let trackNutriscore = true;
+  let trackNOVA = true;
+
+  // =============================================
+  // RENDU DU SÉLECTEUR DE NUTRIMENTS
+  // =============================================
+  function renderNutrientGroups() {
+    const container = document.getElementById('nutrient-groups');
+    if (!container) return;
+    const usdaActive = activeDatabases.usda;
+
+    container.innerHTML = NUTRIENT_GROUPS.map(group => {
+      // Cacher le groupe USDA si USDA non actif
+      if (group.id === 'usda_extra' && !usdaActive) return '';
+
+      const chips = group.nutrients.map(n => {
+        const isSelected = selectedNutrients.has(n.id);
+        const usdaClass = n.usdaOnly ? ' usda-only' : '';
+        const usdaTitle = n.usdaOnly ? ' title="Disponible avec USDA"' : '';
+        return `<div class="nutrient-chip${usdaClass}${isSelected?' selected':''}"
+          onclick="toggleNutrient('${n.id}')"${usdaTitle}>
+          ${n.label} <span style="opacity:0.6;font-size:10px">${n.unit}</span>
+        </div>`;
+      }).join('');
+
+      const allSelected = group.nutrients.every(n => selectedNutrients.has(n.id));
+      return `<div class="nutrient-group">
+        <div class="nutrient-group-header">
+          <div class="nutrient-group-title">${group.label}</div>
+          <div class="nutrient-group-select-all" onclick="toggleGroup('${group.id}')">${allSelected ? 'Tout désélectionner' : 'Tout sélectionner'}</div>
+        </div>
+        <div class="nutrient-chips">${chips}</div>
+      </div>`;
+    }).join('');
+
+    updateNutrientCount();
+  }
+
+  function toggleNutrient(id) {
+    if (selectedNutrients.has(id)) selectedNutrients.delete(id);
+    else selectedNutrients.add(id);
+    renderNutrientGroups();
+  }
+
+  function toggleGroup(groupId) {
+    const group = NUTRIENT_GROUPS.find(g => g.id === groupId);
+    if (!group) return;
+    const allSelected = group.nutrients.every(n => selectedNutrients.has(n.id));
+    group.nutrients.forEach(n => allSelected ? selectedNutrients.delete(n.id) : selectedNutrients.add(n.id));
+    renderNutrientGroups();
+  }
+
+  function setNutrientPreset(preset) {
+    selectedNutrients.clear();
+    if (preset === 'all') {
+      NUTRIENT_GROUPS.forEach(g => g.nutrients.forEach(n => {
+        if (!n.usdaOnly || activeDatabases.usda) selectedNutrients.add(n.id);
+      }));
+    } else {
+      NUTRIENT_GROUPS.forEach(g => g.nutrients.filter(n => n.standard).forEach(n => selectedNutrients.add(n.id)));
+    }
+    renderNutrientGroups();
+  }
+
+  function updateNutrientCount() {
+    const el = document.getElementById('nutrient-count-label');
+    if (el) el.textContent = `${selectedNutrients.size} nutriment${selectedNutrients.size > 1 ? 's' : ''} sélectionné${selectedNutrients.size > 1 ? 's' : ''}`;
+  }
+
+  // Init au chargement
+  window.addEventListener('DOMContentLoaded', () => {
+    renderNutrientGroups();
+    initApp();
+  });
+  function calcNutrition(per100g, qty_g) {
+    const f = qty_g / 100;
+    const r = v => v != null ? Math.round(v * f * 10) / 10 : null;
+    return {
+      kcal: Math.round(per100g.kcal * f),
+      prot: r(per100g.prot), lip: r(per100g.lip), gluc: r(per100g.gluc),
+      sucres: r(per100g.sucres), fibres: r(per100g.fibres), eau: r(per100g.eau),
+      sel: r(per100g.sel), ca: r(per100g.ca), fe: r(per100g.fe),
+      vitC: r(per100g.vitC), vitD: r(per100g.vitD), vitB12: r(per100g.vitB12),
+      folates: r(per100g.folates), mg: r(per100g.mg), zn: r(per100g.zn),
+      k: r(per100g.k), omega3: r(per100g.omega3)
+    };
+  }
+
+  // =============================================
+  // ÉTAT GLOBAL
+  // =============================================
+  let identifiedAliments = [];
+  let activeDatabases = { ciqual: true, off: true, usda: false };
+
+  // =============================================
+  // TOGGLE BASE DE DONNÉES
+  // =============================================
+  function toggleDb(db) {
+    const newState = !activeDatabases[db];
+    const otherActive = Object.entries(activeDatabases).some(([k, v]) => k !== db && v);
+    if (!newState && !otherActive) return;
+    activeDatabases[db] = newState;
+    const toggle = document.getElementById(`toggle-${db}`);
+    const option = document.getElementById(`db-${db}`);
+    toggle.classList.toggle('on', newState);
+    option.setAttribute('data-active', newState);
+    // Rafraîchir les options OFF
+    if (db === 'off') {
+      const offOpts = document.getElementById('off-options');
+      if (offOpts) offOpts.style.display = newState ? 'block' : 'none';
+    }
+    // Rafraîchir les nutriments (pour afficher/cacher USDA extras)
+    renderNutrientGroups();
+  }
+
+  // =============================================
+  // NAVIGATION
+  // =============================================
+  function goTo(screenId) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById(screenId).classList.add('active');
+    window.scrollTo(0, 0);
+  }
+  function openRecueil(id) { goTo('screen-recueil'); }
+
+  // =============================================
+  // CREATE RECUEIL
+  // =============================================
+  let selectedType = '24h';
+  function selectType(el, type) {
+    document.querySelectorAll('.type-option').forEach(o => o.classList.remove('selected'));
+    el.classList.add('selected'); selectedType = type;
+    document.getElementById('custom-days-group').style.display = type === 'custom' ? 'block' : 'none';
+  }
+  // =============================================
+  // CAMERA
+  // =============================================
+  let stream = null;
+  async function startCamera() {
+    const video = document.getElementById('camera-feed');
+    const placeholder = document.getElementById('camera-placeholder');
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+      video.srcObject = stream; video.style.display = 'block'; placeholder.style.display = 'none';
+    } catch(e) { placeholder.style.display = 'flex'; video.style.display = 'none'; }
+  }
+  function stopCamera() {
+    if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+    goTo('screen-recueil');
+  }
+
+  // =============================================
+  // CONSTRUCTION DU PROMPT SELON LES BASES ACTIVES
+  // =============================================
+  function buildPrompt() {
+    const dbs = activeDatabases;
+    const activeList = [];
+    if (dbs.ciqual) activeList.push('CIQUAL 2020 (ANSES)');
+    if (dbs.off) activeList.push('Open Food Facts');
+    if (dbs.usda) activeList.push('USDA FoodData Central');
+
+    const priorityRule = dbs.ciqual && dbs.off
+      ? 'Priorité : CIQUAL pour aliments génériques non transformés, Open Food Facts pour produits de marque ou industriels.'
+      : dbs.ciqual ? 'Utilise CIQUAL 2020.'
+      : dbs.off ? 'Utilise Open Food Facts.'
+      : 'Utilise USDA FoodData Central.';
+    if (dbs.usda && activeList.length > 1) priorityRule.concat(' USDA en complément si aliment mieux documenté.');
+
+    // Construire la liste des nutriments à retourner
+    const allNutrients = NUTRIENT_GROUPS.flatMap(g => g.nutrients);
+    const selectedList = allNutrients.filter(n => selectedNutrients.has(n.id));
+    const nutrientSchema = Object.fromEntries(selectedList.map(n => [n.id, 0]));
+    const nutrientDesc = selectedList.map(n => `"${n.id}": ${n.label} en ${n.unit}`).join(', ');
+
+    // NOVA et Nutriscore
+    const trackNS = dbs.off && document.getElementById('toggle-nutriscore')?.classList.contains('on');
+    const trackNV = dbs.off && document.getElementById('toggle-nova')?.classList.contains('on');
+    const extraFields = [
+      trackNS ? '"nutriscore": "A" à "E" (lettre unique, null si inconnu)' : '',
+      trackNV ? '"nova": 1 à 4 (entier, null si inconnu)' : '',
+    ].filter(Boolean);
+
+    const extraSchema = {};
+    if (trackNS) extraSchema.nutriscore = null;
+    if (trackNV) extraSchema.nova = null;
+
+    return `Tu es expert en diététique clinique et en bases de données nutritionnelles.
+Bases actives : ${activeList.join(' | ')}.
+${priorityRule}
+
+Identifie TOUS les aliments visibles. Pour chacun, retourne les valeurs pour 100g.
+Nutriments demandés : ${nutrientDesc}.${extraFields.length ? '\nChamps additionnels : ' + extraFields.join(', ') + '.' : ''}
+
+Réponds UNIQUEMENT en JSON valide, sans markdown :
+{
+  "aliments": [{
+    "nom": "nom commun français",
+    "db_nom": "nom exact dans la base utilisée",
+    "source": "CIQUAL" | "OFF" | "USDA",
+    "emoji": "emoji",
+    "quantite_g": 150,
+    "confiance": 4,
+    ${Object.keys(extraSchema).length ? '"' + Object.keys(extraSchema).join('": null, "') + '": null,' : ''}
+    "per100g": ${JSON.stringify(nutrientSchema)}
+  }]
+}
+
+Règles : confiance 1-5, quantite_g estimation visuelle, toutes valeurs per100g obligatoires (0 si absent).`;
+  }
+
+  // =============================================
+  // CAPTURE & ANALYSE
+  // =============================================
+  let capturedImageBase64 = null;
+
+  function simulateCapture() {
+    const video = document.getElementById('camera-feed');
+    const canvas = document.getElementById('snapshot-canvas');
+    if (video.srcObject) {
+      canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+      canvas.getContext('2d').drawImage(video, 0, 0);
+      capturedImageBase64 = canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
+    }
+    if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+    goTo('screen-analysis');
+    analyzeFood();
+  }
+
+  async function analyzeFood() {
+    const loadingEl = document.getElementById('analysis-loading');
+    const resultsEl = document.getElementById('analysis-results');
+    loadingEl.style.display = 'flex'; resultsEl.style.display = 'none';
+
+    const prompt = buildPrompt();
+
+    try {
+      let messages;
+      if (capturedImageBase64) {
+        messages = [{ role: 'user', content: [
+          { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: capturedImageBase64 } },
+          { type: 'text', text: prompt }
+        ]}];
+      } else {
+        messages = [{ role: 'user', content:
+          prompt + '\n\n(DÉMO sans photo : génère 3 aliments d\'un petit-déjeuner : yaourt nature entier, fraises fraîches, tranche de pain baguette.)'
+        }];
+      }
+
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 2000, messages })
+      });
+
+      const data = await response.json();
+      const text = data.content[0].text;
+      const clean = text.replace(/```json|```/g, '').trim();
+      const parsed = JSON.parse(clean);
+
+      identifiedAliments = parsed.aliments.map((a, i) => ({ ...a, idx: i }));
+
+      loadingEl.style.display = 'none';
+      renderConfirmScreen();
+      goTo('screen-confirm');
+
+    } catch(err) {
+      loadingEl.style.display = 'none';
+      resultsEl.style.display = 'block';
+      resultsEl.innerHTML = `
+        <div class="alert alert-danger"><span class="alert-icon">❌</span>
+        <span>Erreur lors de l'analyse. Vérifiez la connexion et réessayez.<br><small>${err.message}</small></span></div>
+        <button class="btn btn-primary" onclick="goTo('screen-recueil')">Retour</button>`;
+    }
+  }
+
+  // =============================================
+  // RENDU DYNAMIQUE DE L'ÉCRAN DE CONFIRMATION
+  // =============================================
+  function renderConfirmScreen() {
+    document.getElementById('foods-container').innerHTML =
+      identifiedAliments.map((a, i) => buildFoodCard(a, i)).join('');
+  }
+
+  function sourceBadge(source) {
+    const map = {
+      'CIQUAL': `<span class="src-badge-ciqual">✓ CIQUAL 2020</span>`,
+      'OFF':    `<span class="src-badge-off">✓ Open Food Facts</span>`,
+      'USDA':   `<span class="src-badge-usda">✓ USDA</span>`
+    };
+    return map[source] || `<span class="src-badge-ciqual">✓ CIQUAL 2020</span>`;
+  }
+
+  function buildFoodCard(a, i) {
+    const qty = a.quantite_g || 100;
+    const v = calcNutrition(a.per100g, qty);
+
+    const dots = Array.from({ length: 5 }, (_, d) =>
+      `<div class="confidence-dot ${d < a.confiance ? 'filled' : ''}"></div>`).join('');
+
+    const mb = (label, val, unit, warn) => {
+      if (val == null || val === 0) return '';
+      const amber = warn && val > warn;
+      return `<span style="font-size:11px;color:${amber?'var(--amber)':'var(--text-mid)'};background:var(--bg);padding:3px 8px;border-radius:8px;border:1px solid var(--border);">${label} ${val}${unit}</span>`;
+    };
+
+    // NOVA badge
+    const novaColors = { 1:'#2E7D32', 2:'#F57F17', 3:'#E65100', 4:'#B71C1C' };
+    const novaBadge = a.nova ? `<span style="font-size:10px;background:#FFF3E0;color:${novaColors[a.nova]||'#555'};padding:2px 8px;border-radius:10px;font-weight:700;">NOVA ${a.nova}</span>` : '';
+
+    // Nutriscore badge
+    const nsColors = { A:'#00813a', B:'#85bb2f', C:'#ffca02', D:'#f08400', E:'#e63e11' };
+    const nsBadge = a.nutriscore ? `<span style="font-size:10px;background:${nsColors[a.nutriscore]||'#aaa'};color:white;padding:2px 8px;border-radius:10px;font-weight:700;">Nutri-Score ${a.nutriscore}</span>` : '';
+
+    // Construire les micronutriments sélectionnés
+    const allNutrients = NUTRIENT_GROUPS.flatMap(g => g.nutrients);
+    const microFields = allNutrients.filter(n => selectedNutrients.has(n.id) && !['kcal','prot','lip','gluc'].includes(n.id));
+    const microsHtml = microFields.map(n => {
+      const raw = v[n.id] ?? (a.per100g?.[n.id] != null ? Math.round(a.per100g[n.id] * qty/100 * 10)/10 : null);
+      return mb(n.label.replace(/Vit\. /,'').replace(' (kcal)',''), raw, n.unit, n.id==='sel'?0.5:null);
+    }).join('');
+
+    return `
+    <div class="food-result-card" id="food-card-${i}">
+      <div class="food-result-top">
+        <div class="food-photo-thumb">${a.emoji || '🍽️'}</div>
+        <div style="flex:1">
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+            <div class="food-name">${a.nom}</div>
+            ${sourceBadge(a.source)}
+            ${novaBadge}${nsBadge}
+          </div>
+          <div style="font-size:11px;color:var(--text-light);margin-top:2px;font-style:italic">${a.db_nom||''}</div>
+          <div class="food-confidence" style="margin-top:4px">Confiance identification :</div>
+          <div class="confidence-bar">${dots}</div>
+        </div>
+      </div>
+
+      <div class="form-group mb-0">
+        <label class="form-label">Quantité estimée</label>
+        <div class="quantity-row">
+          <button class="qty-btn" onclick="adjustQtyDyn(${i},-25)">−</button>
+          <input class="qty-input" id="qty-${i}" value="${qty}" type="number" onchange="updateNutrition(${i})"/>
+          <span style="font-size:13px;color:var(--text-light)">g</span>
+          <button class="qty-btn" onclick="adjustQtyDyn(${i},25)">+</button>
+        </div>
+      </div>
+
+      <div class="nutrition-grid" style="margin-top:12px">
+        <div class="nutrition-item"><div class="nutrition-value" id="kcal-${i}">${v.kcal}</div><div class="nutrition-unit">kcal</div><div class="nutrition-label">Énergie</div></div>
+        <div class="nutrition-item"><div class="nutrition-value" id="prot-${i}">${v.prot}g</div><div class="nutrition-unit"></div><div class="nutrition-label">Protéines</div></div>
+        <div class="nutrition-item"><div class="nutrition-value" id="lip-${i}">${v.lip}g</div><div class="nutrition-unit"></div><div class="nutrition-label">Lipides</div></div>
+        <div class="nutrition-item"><div class="nutrition-value" id="gluc-${i}">${v.gluc}g</div><div class="nutrition-unit"></div><div class="nutrition-label">Glucides</div></div>
+      </div>
+
+      <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:10px;" id="micros-${i}">${microsHtml}</div>
+
+      <div style="margin-top:10px;display:flex;gap:8px;">
+        <button class="btn btn-secondary btn-sm" onclick="showCorrection('corr-${i}')">✏️ Corriger</button>
+        <button class="btn btn-sm" style="background:var(--red-light);color:var(--red);border:none;" onclick="removeFood(${i})">🗑 Supprimer</button>
+      </div>
+      <div id="corr-${i}" style="display:none;margin-top:10px;">
+        <div class="correction-row">
+          <input type="text" class="form-input" id="corr-input-${i}" placeholder="Saisir le nom de l'aliment…" style="margin:0"/>
+          <button class="btn btn-primary btn-sm" style="width:auto;padding:10px 14px" onclick="applyCorrection(${i})">OK</button>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  function adjustQtyDyn(i, delta) {
+    const input = document.getElementById(`qty-${i}`);
+    input.value = Math.max(5, (parseInt(input.value) || 100) + delta);
+    updateNutrition(i);
+  }
+
+  function updateNutrition(i) {
+    const a = identifiedAliments[i];
+    if (!a || !a.per100g) return;
+    const qty = parseInt(document.getElementById(`qty-${i}`).value) || 100;
+    const v = calcNutrition(a.per100g, qty);
+    document.getElementById(`kcal-${i}`).textContent = v.kcal;
+    document.getElementById(`prot-${i}`).textContent = v.prot + 'g';
+    document.getElementById(`lip-${i}`).textContent = v.lip + 'g';
+    document.getElementById(`gluc-${i}`).textContent = v.gluc + 'g';
+    const mb = (label, val, unit, warn) => {
+      if (val == null) return '';
+      return `<span style="font-size:11px;color:${warn&&val>warn?'var(--amber)':'var(--text-mid)'};background:var(--bg);padding:3px 8px;border-radius:8px;border:1px solid var(--border);">${label} ${val}${unit}</span>`;
+    };
+    document.getElementById(`micros-${i}`).innerHTML = [
+      mb('Fibres',v.fibres,'g'), mb('Sel',v.sel,'g',0.5), mb('Ca',v.ca,'mg'),
+      mb('Fe',v.fe,'mg'), mb('Vit.C',v.vitC,'mg'), mb('Vit.D',v.vitD,'µg'),
+      mb('Vit.B12',v.vitB12,'µg'), mb('Folates',v.folates,'µg'), mb('Mg',v.mg,'mg'),
+      mb('Zn',v.zn,'mg'), mb('K',v.k,'mg'), mb('ω-3',v.omega3,'g')
+    ].join('');
+  }
+
+  function removeFood(i) {
+    identifiedAliments[i] = null;
+    const card = document.getElementById(`food-card-${i}`);
+    if (card) card.style.display = 'none';
+  }
+
+  async function applyCorrection(i) {
+    const newName = document.getElementById(`corr-input-${i}`).value.trim();
+    if (!newName) return;
+    document.getElementById(`food-card-${i}`).innerHTML = `<div class="loading-state"><div class="spinner"></div><div class="loading-text">Recherche dans les bases…</div></div>`;
+    try {
+      const dbs = Object.entries(activeDatabases).filter(([,v])=>v).map(([k])=>k.toUpperCase()).join(', ');
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 500,
+          messages: [{ role: 'user', content:
+            `Bases actives : ${dbs}. ${dbs.includes('CIQUAL')&&dbs.includes('OFF') ? 'Priorité CIQUAL pour aliments génériques, OFF pour produits de marque.' : ''}
+Donne les valeurs nutritionnelles pour 100g de : "${newName}". Indique la source utilisée (CIQUAL, OFF ou USDA).
+JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kcal":0,"prot":0,"lip":0,"gluc":0,"sucres":0,"fibres":0,"eau":0,"sel":0,"ca":0,"fe":0,"vitC":0,"vitD":0,"vitB12":0,"folates":0,"mg":0,"zn":0,"k":0,"omega3":0}}`
+          }]
+        })
+      });
+      const data = await response.json();
+      const parsed = JSON.parse(data.content[0].text.replace(/```json|```/g,'').trim());
+      identifiedAliments[i] = { ...identifiedAliments[i], nom: newName, ...parsed, quantite_g: identifiedAliments[i]?.quantite_g || 100, confiance: 3, idx: i };
+      document.getElementById(`food-card-${i}`).outerHTML = buildFoodCard(identifiedAliments[i], i);
+    } catch(e) {
+      document.getElementById(`food-card-${i}`).outerHTML = buildFoodCard({ ...identifiedAliments[i], nom: newName }, i);
+    }
+  }
+
+  function showCorrection(id) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+  }
+
+  async function addManualFood() {
+    const name = prompt('Nom de l\'aliment à ajouter :');
+    if (!name) return;
+    const idx = identifiedAliments.length;
+    const container = document.getElementById('foods-container');
+    container.insertAdjacentHTML('beforeend',
+      `<div id="food-card-${idx}" class="food-result-card"><div class="loading-state"><div class="spinner"></div><div class="loading-text">Recherche dans les bases…</div></div></div>`);
+    try {
+      const dbs = Object.entries(activeDatabases).filter(([,v])=>v).map(([k])=>k.toUpperCase()).join(', ');
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 500,
+          messages: [{ role: 'user', content:
+            `Bases actives : ${dbs}. ${dbs.includes('CIQUAL')&&dbs.includes('OFF') ? 'Priorité CIQUAL pour aliments génériques, OFF pour produits de marque.' : ''}
+Donne les valeurs nutritionnelles pour 100g de : "${name}". Indique la source utilisée (CIQUAL, OFF ou USDA).
+JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kcal":0,"prot":0,"lip":0,"gluc":0,"sucres":0,"fibres":0,"eau":0,"sel":0,"ca":0,"fe":0,"vitC":0,"vitD":0,"vitB12":0,"folates":0,"mg":0,"zn":0,"k":0,"omega3":0}}`
+          }]
+        })
+      });
+      const data = await response.json();
+      const parsed = JSON.parse(data.content[0].text.replace(/```json|```/g,'').trim());
+      const newFood = { nom: name, ...parsed, quantite_g: 100, confiance: 3, idx };
+      identifiedAliments.push(newFood);
+      document.getElementById(`food-card-${idx}`).outerHTML = buildFoodCard(newFood, idx);
+    } catch(e) { document.getElementById(`food-card-${idx}`).remove(); }
+  }
+
+  // =============================================
+  // CONFIRM SCREEN — DIVERS
+  // =============================================
+  function selectLieu(el) {
+    document.querySelectorAll('.lieu-chip').forEach(c => c.classList.remove('selected'));
+    el.classList.add('selected');
+  }
+  function toggleSwitch(el) {
+    if (typeof el === 'string') el = document.getElementById(el);
+    el.classList.toggle('on');
+    if (el.id === 'toggle-inhabituel')
+      document.getElementById('inhabituel-note').style.display = el.classList.contains('on') ? 'block' : 'none';
+  }
+  function validateMeal() { goTo('screen-recueil'); }
+
+  // =============================================
+  // MODALS
+  // =============================================
+  function showSkipModal() { document.getElementById('modal-skip').classList.add('active'); }
+  function showMealTypeModal() { document.getElementById('modal-meal-type').classList.add('active'); }
+  function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+  function selectMealType(type) {
+    closeModal('modal-meal-type');
+    const labels = { 'petit-dej':'Petit-déjeuner','dejeuner':'Déjeuner','diner':'Dîner','collation':'Collation','autre':'Repas inhabituel' };
+    document.querySelector('.camera-meal-label').textContent = (labels[type]||type) + ' — Mer 2 avr.';
+  }
+  function viewMeal() { alert('Détail du repas — disponible dans la prochaine version.'); }
+
+  // =============================================
+  // INIT CAMÉRA
+  // =============================================
+  const observer = new MutationObserver(() => {
+    const cam = document.getElementById('screen-camera');
+    if (cam.classList.contains('active') && !stream) startCamera();
+  });
+  observer.observe(document.getElementById('screen-camera'), { attributes: true, attributeFilter: ['class'] });
+
+  // PWA Service Worker
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'));
+  }
+</script>
+</body>
+</html>
