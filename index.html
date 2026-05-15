@@ -1620,7 +1620,7 @@
 
     <div class="bottom-nav">
       <div class="nav-item active"><div class="nav-icon">🏠</div>Accueil</div>
-      <div class="nav-item" onclick="goTo('screen-settings')"><div class="nav-icon">⚙️</div>Paramètres</div>
+      <div class="nav-item" onclick="goTo('screen-settings');loadSettingsApiKey()"><div class="nav-icon">⚙️</div>Paramètres</div>
       <div class="nav-item" onclick="logout()"><div class="nav-icon">🚪</div>Déconnexion</div>
       <div class="nav-item" onclick="deleteAccount()" style="color:#e53e3e"><div class="nav-icon">🗑️</div>Supprimer</div>
     </div>
@@ -1980,6 +1980,21 @@
       </div>
 
       <div class="settings-section">
+        <div class="section-label">Clé API Anthropic</div>
+        <div style="padding:12px 0">
+          <div style="font-size:13px;color:var(--text-light);margin-bottom:10px">Nécessaire pour l'analyse photo et la saisie texte. N'est jamais transmise à nos serveurs.</div>
+          <input type="password" class="form-input" id="settings-api-key"
+            placeholder="sk-ant-api03-..."
+            style="font-family:monospace;font-size:12px;margin-bottom:10px" />
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-primary" style="flex:1;padding:10px" onclick="saveApiKey()">Enregistrer</button>
+            <button class="btn btn-secondary" style="padding:10px 14px" onclick="toggleApiKeyVisibility()">👁</button>
+          </div>
+          <div id="api-key-status" style="font-size:12px;margin-top:8px;color:var(--text-light)"></div>
+        </div>
+      </div>
+
+      <div class="settings-section">
         <div class="section-label">À propos</div>
         <div class="settings-row">
           <div class="settings-row-left">
@@ -2093,7 +2108,29 @@
   // =============================================
   const SUPABASE_URL = 'https://nhxrrfdwebfaoxyvnwes.supabase.co';
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5oeHJyZmR3ZWJmYW94eXZud2VzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgyNTg1ODQsImV4cCI6MjA5MzgzNDU4NH0.Ekmpm6LvL6sIr-n1qnyad--XMgzyJBk-vWh_mLq_xTY';
-  const ANTHROPIC_KEY = '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';
+  function getApiKey() { return localStorage.getItem('nsr_api_key') || ''; }
+  function saveApiKey() {
+    const key = document.getElementById('settings-api-key').value.trim();
+    if (!key.startsWith('sk-ant-')) { showToast('Clé invalide — doit commencer par sk-ant-', 'error'); return; }
+    localStorage.setItem('nsr_api_key', key);
+    document.getElementById('api-key-status').textContent = '✓ Clé enregistrée sur cet appareil';
+    document.getElementById('api-key-status').style.color = 'var(--teal)';
+    showToast('Clé API enregistrée', 'success');
+  }
+  function toggleApiKeyVisibility() {
+    const el = document.getElementById('settings-api-key');
+    el.type = el.type === 'password' ? 'text' : 'password';
+  }
+  function loadSettingsApiKey() {
+    const key = getApiKey();
+    const el = document.getElementById('settings-api-key');
+    if (el) {
+      el.value = key;
+      const status = document.getElementById('api-key-status');
+      if (key) { status.textContent = '✓ Clé enregistrée sur cet appareil'; status.style.color = 'var(--teal)'; }
+      else { status.textContent = 'Aucune clé configurée'; }
+    }
+  }
   const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
   let currentUser = null;
@@ -2715,7 +2752,7 @@
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': ANTHROPIC_KEY,
+          'x-api-key': getApiKey(),
           'anthropic-version': '2023-06-01',
           'anthropic-dangerous-direct-browser-access': 'true'
         },
@@ -2724,6 +2761,7 @@
         })
       });
       const data = await response.json();
+      if (!getApiKey()) throw new Error('Clé API non configurée — rendez-vous dans Paramètres');
       if (data.error) throw new Error(data.error.message);
       const clean = data.content[0].text.replace(/```json|```/g, '').trim();
       const parsed = JSON.parse(clean);
@@ -3170,7 +3208,7 @@ Règles : confiance 1-5, quantite_g estimation visuelle, toutes valeurs per100g 
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': ANTHROPIC_KEY,
+          'x-api-key': getApiKey(),
           'anthropic-version': '2023-06-01',
           'anthropic-dangerous-direct-browser-access': 'true'
         },
@@ -3336,7 +3374,7 @@ Règles : confiance 1-5, quantite_g estimation visuelle, toutes valeurs per100g 
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': ANTHROPIC_KEY,
+          'x-api-key': getApiKey(),
           'anthropic-version': '2023-06-01',
           'anthropic-dangerous-direct-browser-access': 'true'
         },
@@ -3375,7 +3413,7 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': ANTHROPIC_KEY,
+          'x-api-key': getApiKey(),
           'anthropic-version': '2023-06-01',
           'anthropic-dangerous-direct-browser-access': 'true'
         },
