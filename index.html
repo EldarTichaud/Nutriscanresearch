@@ -2483,13 +2483,23 @@
           <div class="patient-name">${t.email}</div>
           <div class="patient-status"><span class="status-dot pending"></span>En attente · Code : <strong>${t.token}</strong></div>
         </div>
-        <div style="font-size:20px">⏳</div>
+        <button onclick="deleteInvitation('${t.id}', '${projectId}')"
+          style="background:none;border:none;cursor:pointer;font-size:18px;color:#e53e3e;padding:4px 8px"
+          title="Annuler l'invitation">🗑️</button>
       </div>`).join('');
 
     document.getElementById('patients-list').innerHTML =
       `<button class="btn btn-primary" style="margin-bottom:16px" onclick="showAddPatientModal()">+ Ajouter un patient</button>` +
       activeHtml + pendingHtml ||
       '<p style="color:var(--text-light);font-size:13px">Aucun patient encore.</p>';
+  }
+
+  async function deleteInvitation(tokenId, projectId) {
+    if (!confirm('Annuler cette invitation ?')) return;
+    const { error } = await sb.from('activation_tokens').delete().eq('id', tokenId);
+    if (error) { alert('Erreur : ' + error.message); return; }
+    showToast('Invitation annulée', 'success');
+    await renderPatientsList(projectId);
   }
 
   async function generatePatientToken() {
