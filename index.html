@@ -1445,6 +1445,7 @@
     <div class="bottom-nav">
       <div class="nav-item active"><div class="nav-icon">🥗</div>Mon recueil</div>
       <div class="nav-item" onclick="openPatientProfile()"><div class="nav-icon">👤</div>Profil</div>
+      <div class="nav-item" onclick="showPatientApiKeyModal()"><div class="nav-icon">⚙️</div>Clé API</div>
       <div class="nav-item" id="nav-contact-btn" onclick="showContactInfo()" style="display:none"><div class="nav-icon">✉️</div>Contact</div>
       <div class="nav-item" onclick="logout()"><div class="nav-icon">🚪</div>Déconnexion</div>
       <div class="nav-item" onclick="deleteAccount()" style="color:#e53e3e"><div class="nav-icon">🗑️</div>Supprimer</div>
@@ -2057,6 +2058,21 @@
         <button class="btn btn-secondary" onclick="selectMealType('collation')">🍎 Collation / Grignotage</button>
         <button class="btn btn-secondary" onclick="selectMealType('autre')">🕐 Repas inhabituel</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Modal API Key Patient -->
+  <div class="modal-overlay" id="modal-patient-apikey" onclick="closeModal('modal-patient-apikey')">
+    <div class="modal" onclick="event.stopPropagation()">
+      <div class="modal-handle"></div>
+      <div class="modal-title">Clé API Anthropic</div>
+      <p style="font-size:13px;color:var(--text-light);margin-bottom:12px">Nécessaire pour l'analyse des repas. Saisie une seule fois sur cet appareil.</p>
+      <input type="password" class="form-input" id="patient-api-key-input" placeholder="sk-ant-api03-..." style="font-family:monospace;font-size:12px;margin-bottom:10px" />
+      <div style="display:flex;gap:8px;margin-bottom:8px">
+        <button class="btn btn-primary" style="flex:1" onclick="savePatientApiKey()">Enregistrer</button>
+        <button class="btn btn-secondary" style="padding:10px 14px" onclick="togglePatientApiKeyVisibility()">👁</button>
+      </div>
+      <div id="patient-api-key-status" style="font-size:12px;color:var(--text-light)"></div>
     </div>
   </div>
 
@@ -3084,6 +3100,27 @@
       updateIMC();
     }
     goTo('screen-patient-profile');
+  }
+  function showPatientApiKeyModal() {
+    const key = getApiKey();
+    const input = document.getElementById('patient-api-key-input');
+    const status = document.getElementById('patient-api-key-status');
+    if (input) input.value = key;
+    if (status) status.textContent = key ? '✓ Clé enregistrée sur cet appareil' : 'Aucune clé configurée';
+    document.getElementById('modal-patient-apikey').classList.add('active');
+  }
+  function savePatientApiKey() {
+    const key = document.getElementById('patient-api-key-input').value.trim();
+    if (!key.startsWith('sk-ant-')) { showToast('Clé invalide', 'error'); return; }
+    localStorage.setItem('nsr_api_key', key);
+    document.getElementById('patient-api-key-status').textContent = '✓ Clé enregistrée sur cet appareil';
+    document.getElementById('patient-api-key-status').style.color = 'var(--teal)';
+    showToast('Clé API enregistrée', 'success');
+    closeModal('modal-patient-apikey');
+  }
+  function togglePatientApiKeyVisibility() {
+    const el = document.getElementById('patient-api-key-input');
+    el.type = el.type === 'password' ? 'text' : 'password';
   }
   function showContactInfo() {
     if (currentContactEmail) {
