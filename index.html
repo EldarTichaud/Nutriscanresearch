@@ -2520,17 +2520,20 @@
     document.getElementById('add-patient-form').style.display = 'none';
   }
 
+  function deaccent(str) {
+    return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\x00-\x7F]/g, '');
+  }
   function sendInvitationEmail() {
     const inv = window._pendingInvitation;
     if (!inv) return;
-    const subject = encodeURIComponent(`Invitation à participer à l'étude ${inv.project?.name || ''} - NutriScanResearch`);
     const appUrl = window.location.origin + window.location.pathname;
-    const defaultMsg = inv.project?.invitation_message ||
-      `Bonjour ${inv.name},\n\nNous vous invitons à participer à notre étude nutritionnelle via NutriScanResearch.\n\n`;
-    const body = encodeURIComponent(
-      `${defaultMsg}\n\nVotre code d'activation : ${inv.token}\n\nPour activer votre compte, rendez-vous sur :\n${appUrl}\n\nCliquez sur "Activer mon compte" et saisissez ce code.\n\nCordialement`
-    );
-    window.location.href = `mailto:${inv.email}?subject=${subject}&body=${body}`;
+    const projectName = deaccent(inv.project?.name || '');
+    const patientName = deaccent(inv.name || '');
+    const customMsg = inv.project?.invitation_message ? deaccent(inv.project.invitation_message) : '';
+    const defaultMsg = customMsg || `Bonjour ${patientName},\n\nNous vous invitons a participer a notre etude nutritionnelle via NutriScanResearch.`;
+    const body = `${defaultMsg}\n\nVotre code d'activation : ${inv.token}\n\nPour activer votre compte, rendez-vous sur :\n${appUrl}\n\nCliquez sur "Activer mon compte" et saisissez ce code.\n\nCordialement`;
+    const subject = encodeURIComponent(`Invitation - Etude ${projectName} - NutriScanResearch`);
+    window.location.href = `mailto:${inv.email}?subject=${subject}&body=${encodeURIComponent(body)}`;
   }
 
   async function showAddPatientModal() {
