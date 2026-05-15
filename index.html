@@ -1410,8 +1410,8 @@
     <div class="content">
       <!-- Boutons d'ajout -->
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px">
-        <button class="btn btn-primary" onclick="goTo('screen-camera')">📷 Photo</button>
-        <button class="btn btn-secondary" onclick="showManualMealModal()">✏️ Saisir</button>
+        <button class="btn btn-primary" onclick="askMealTypeThen('camera')">📷 Photo</button>
+        <button class="btn btn-secondary" onclick="askMealTypeThen('manual')">✏️ Saisir</button>
       </div>
 
       <!-- Liste des repas du jour -->
@@ -2719,11 +2719,12 @@
           'anthropic-version': '2023-06-01',
           'anthropic-dangerous-direct-browser-access': 'true'
         },
-        body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 2000,
+        body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 2000,
           messages: [{ role: 'user', content: prompt }]
         })
       });
       const data = await response.json();
+      if (data.error) throw new Error(data.error.message);
       const clean = data.content[0].text.replace(/```json|```/g, '').trim();
       const parsed = JSON.parse(clean);
       identifiedAliments = parsed.aliments.map((a, i) => ({ ...a, idx: i }));
@@ -3173,10 +3174,11 @@ Règles : confiance 1-5, quantite_g estimation visuelle, toutes valeurs per100g 
           'anthropic-version': '2023-06-01',
           'anthropic-dangerous-direct-browser-access': 'true'
         },
-        body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 2000, messages })
+        body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 2000, messages })
       });
 
       const data = await response.json();
+      if (data.error) throw new Error(data.error.message);
       const text = data.content[0].text;
       const clean = text.replace(/```json|```/g, '').trim();
       const parsed = JSON.parse(clean);
@@ -3338,7 +3340,7 @@ Règles : confiance 1-5, quantite_g estimation visuelle, toutes valeurs per100g 
           'anthropic-version': '2023-06-01',
           'anthropic-dangerous-direct-browser-access': 'true'
         },
-        body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 500,
+        body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 500,
           messages: [{ role: 'user', content:
             `Bases actives : ${dbs}. ${dbs.includes('CIQUAL')&&dbs.includes('OFF') ? 'Priorité CIQUAL pour aliments génériques, OFF pour produits de marque.' : ''}
 Donne les valeurs nutritionnelles pour 100g de : "${newName}". Indique la source utilisée (CIQUAL, OFF ou USDA).
@@ -3377,7 +3379,7 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
           'anthropic-version': '2023-06-01',
           'anthropic-dangerous-direct-browser-access': 'true'
         },
-        body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 500,
+        body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 500,
           messages: [{ role: 'user', content:
             `Bases actives : ${dbs}. ${dbs.includes('CIQUAL')&&dbs.includes('OFF') ? 'Priorité CIQUAL pour aliments génériques, OFF pour produits de marque.' : ''}
 Donne les valeurs nutritionnelles pour 100g de : "${name}". Indique la source utilisée (CIQUAL, OFF ou USDA).
@@ -3414,10 +3416,24 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
   function showSkipModal() { document.getElementById('modal-skip').classList.add('active'); }
   function showMealTypeModal() { document.getElementById('modal-meal-type').classList.add('active'); }
   function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+
+  let _pendingMealAction = null;
+  function askMealTypeThen(action) {
+    _pendingMealAction = action;
+    document.getElementById('modal-meal-type').classList.add('active');
+  }
   function selectMealType(type) {
     closeModal('modal-meal-type');
+    currentMealType = type;
     const labels = { 'petit-dej':'Petit-déjeuner','dejeuner':'Déjeuner','diner':'Dîner','collation':'Collation','autre':'Repas inhabituel' };
-    document.querySelector('.camera-meal-label').textContent = (labels[type]||type) + ' — Mer 2 avr.';
+    const label = labels[type] || type;
+    // Mettre à jour le label caméra si présent
+    const camLabel = document.querySelector('.camera-meal-label');
+    if (camLabel) camLabel.textContent = label + ' — ' + new Date().toLocaleDateString('fr-FR',{weekday:'short',day:'numeric',month:'short'});
+    // Déclencher l'action en attente
+    if (_pendingMealAction === 'camera') { _pendingMealAction = null; goTo('screen-camera'); }
+    else if (_pendingMealAction === 'manual') { _pendingMealAction = null; showManualMealModal(); }
+    else { _pendingMealAction = null; }
   }
   function viewMeal() { alert('Détail du repas — disponible dans la prochaine version.'); }
 
