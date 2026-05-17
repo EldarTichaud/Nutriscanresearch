@@ -2780,7 +2780,7 @@
       const response = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 2000,
+        body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 4000,
           messages: [{ role: 'user', content: prompt }]
         })
       });
@@ -3251,7 +3251,7 @@ Règles : confiance 1-5, quantite_g estimation visuelle, toutes valeurs per100g 
       const response = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 2000, messages })
+        body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 4000, messages })
       });
 
       const data = await response.json();
