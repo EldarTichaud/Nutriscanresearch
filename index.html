@@ -2777,20 +2777,14 @@
     const prompt = buildPrompt() + `\n\n(SAISIE MANUELLE — pas de photo. Description du repas : "${text}". Identifie chaque aliment mentionné ou implicite.)`;
 
     try {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
+      const response = await fetch('/api/analyze', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': getApiKey(),
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 2000,
           messages: [{ role: 'user', content: prompt }]
         })
       });
       const data = await response.json();
-      if (!getApiKey()) throw new Error('Clé API non configurée — rendez-vous dans Paramètres');
       if (data.error) throw new Error(data.error.message);
       const clean = data.content[0].text.replace(/```json|```/g, '').trim();
       const parsed = JSON.parse(clean);
@@ -3254,14 +3248,9 @@ Règles : confiance 1-5, quantite_g estimation visuelle, toutes valeurs per100g 
         }];
       }
 
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
+      const response = await fetch('/api/analyze', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': getApiKey(),
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 2000, messages })
       });
 
@@ -3420,14 +3409,9 @@ Règles : confiance 1-5, quantite_g estimation visuelle, toutes valeurs per100g 
     document.getElementById(`food-card-${i}`).innerHTML = `<div class="loading-state"><div class="spinner"></div><div class="loading-text">Recherche dans les bases…</div></div>`;
     try {
       const dbs = Object.entries(activeDatabases).filter(([,v])=>v).map(([k])=>k.toUpperCase()).join(', ');
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
+      const response = await fetch('/api/analyze', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': getApiKey(),
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 500,
           messages: [{ role: 'user', content:
             `Bases actives : ${dbs}. ${dbs.includes('CIQUAL')&&dbs.includes('OFF') ? 'Priorité CIQUAL pour aliments génériques, OFF pour produits de marque.' : ''}
@@ -3459,14 +3443,9 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
       `<div id="food-card-${idx}" class="food-result-card"><div class="loading-state"><div class="spinner"></div><div class="loading-text">Recherche dans les bases…</div></div></div>`);
     try {
       const dbs = Object.entries(activeDatabases).filter(([,v])=>v).map(([k])=>k.toUpperCase()).join(', ');
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
+      const response = await fetch('/api/analyze', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': getApiKey(),
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 500,
           messages: [{ role: 'user', content:
             `Bases actives : ${dbs}. ${dbs.includes('CIQUAL')&&dbs.includes('OFF') ? 'Priorité CIQUAL pour aliments génériques, OFF pour produits de marque.' : ''}
