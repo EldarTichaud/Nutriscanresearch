@@ -2001,7 +2001,7 @@
           <div class="settings-row-left">
             <div class="settings-icon">ℹ️</div>
             <div>
-              <div class="settings-label">NutriScanResearch v0.3.1</div>
+              <div class="settings-label">NutriScanResearch v0.6.4</div>
               <div class="settings-value">Prototype de recherche — CHU Poitiers</div>
             </div>
           </div>
@@ -3320,7 +3320,7 @@ Règles : confiance 1-5, quantite_g estimation visuelle, toutes valeurs per100g 
     const nsColors = { A:'#038141', B:'#85BB2F', C:'#FECB02', D:'#EE8100', E:'#E63E11' };
     const nsTextColors = { A:'white', B:'white', C:'#1C1C1C', D:'white', E:'white' };
     const nsBadge = a.nutriscore
-      ? `<span title="Nutri-Score calculé depuis valeurs CIQUAL (algo actualisé 2023)" style="font-size:10px;background:${nsColors[a.nutriscore]||'#aaa'};color:${nsTextColors[a.nutriscore]||'white'};padding:2px 8px;border-radius:10px;font-weight:700;">Nutri-Score ${a.nutriscore}</span>`
+      ? `<span title="Nutri-Score calculé localement (algo actualisé 2023) · Valeurs CIQUAL · Note : % fruits/légumes non estimé (pFVL=0)" style="font-size:10px;background:${nsColors[a.nutriscore]||'#aaa'};color:${nsTextColors[a.nutriscore]||'white'};padding:2px 8px;border-radius:10px;font-weight:700;">Nutri-Score ${a.nutriscore}</span>`
       : '';
 
     // Construire les micronutriments sélectionnés
@@ -3570,7 +3570,7 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
     const fvl = aliment.fvl_pct || 0;
     const cat = nsCategorie(aliment.nom);
 
-    const kj   = +(p.kj  ?? p.energie_kj ?? 0);
+    const kj   = +(p.kj  ?? p.energie_kj ?? (p.kcal ? Math.round(p.kcal * 4.184) : 0));
     const sucs = +(p.sucres ?? p.sugars ?? 0);
     const ags  = +(p.ag_sat ?? p.graisses_saturees ?? p.sfa ?? 0);
     const sel  = p.sel != null ? +p.sel : (p.na != null ? +p.na * 2.5 / 1000 : 0);
