@@ -2788,7 +2788,10 @@
       if (data.error) throw new Error(data.error.message);
       const clean = data.content[0].text.replace(/```json|```/g, '').trim();
       const parsed = JSON.parse(clean);
-      identifiedAliments = parsed.aliments.map((a, i) => ({ ...a, idx: i }));
+      identifiedAliments = parsed.aliments.map((a, i) => {
+        const ns = computeNutriscore(a);
+        return { ...a, idx: i, nutriscore: ns?.lettre ?? a.nutriscore ?? null };
+      });
       document.getElementById('analysis-loading').style.display = 'none';
       renderConfirmScreen();
       goTo('screen-confirm');
@@ -3174,8 +3177,8 @@
     const nutrientSchema = Object.fromEntries(selectedList.map(n => [n.id, 0]));
     const nutrientDesc = selectedList.map(n => `"${n.id}": ${n.label} en ${n.unit}`).join(', ');
 
-    // NOVA et Nutriscore
-    const trackNS = dbs.off && document.getElementById('toggle-nutriscore')?.classList.contains('on');
+    // NOVA uniquement (Nutriscore calculé localement depuis per100g)
+    const trackNS = false; // calcul local via computeNutriscore()
     const trackNV = dbs.off && document.getElementById('toggle-nova')?.classList.contains('on');
     const extraFields = [
       trackNS ? '"nutriscore": "A" à "E" (lettre unique, null si inconnu)' : '',
@@ -3260,7 +3263,10 @@ Règles : confiance 1-5, quantite_g estimation visuelle, toutes valeurs per100g 
       const clean = text.replace(/```json|```/g, '').trim();
       const parsed = JSON.parse(clean);
 
-      identifiedAliments = parsed.aliments.map((a, i) => ({ ...a, idx: i }));
+      identifiedAliments = parsed.aliments.map((a, i) => {
+        const ns = computeNutriscore(a);
+        return { ...a, idx: i, nutriscore: ns?.lettre ?? a.nutriscore ?? null };
+      });
 
       loadingEl.style.display = 'none';
       renderConfirmScreen();
@@ -3310,9 +3316,12 @@ Règles : confiance 1-5, quantite_g estimation visuelle, toutes valeurs per100g 
     const novaColors = { 1:'#2E7D32', 2:'#F57F17', 3:'#E65100', 4:'#B71C1C' };
     const novaBadge = a.nova ? `<span style="font-size:10px;background:#FFF3E0;color:${novaColors[a.nova]||'#555'};padding:2px 8px;border-radius:10px;font-weight:700;">NOVA ${a.nova}</span>` : '';
 
-    // Nutriscore badge
-    const nsColors = { A:'#00813a', B:'#85bb2f', C:'#ffca02', D:'#f08400', E:'#e63e11' };
-    const nsBadge = a.nutriscore ? `<span style="font-size:10px;background:${nsColors[a.nutriscore]||'#aaa'};color:white;padding:2px 8px;border-radius:10px;font-weight:700;">Nutri-Score ${a.nutriscore}</span>` : '';
+    // Nutriscore badge (calculé depuis per100g — algo actualisé 2023)
+    const nsColors = { A:'#038141', B:'#85BB2F', C:'#FECB02', D:'#EE8100', E:'#E63E11' };
+    const nsTextColors = { A:'white', B:'white', C:'#1C1C1C', D:'white', E:'white' };
+    const nsBadge = a.nutriscore
+      ? `<span title="Nutri-Score calculé depuis valeurs CIQUAL (algo actualisé 2023)" style="font-size:10px;background:${nsColors[a.nutriscore]||'#aaa'};color:${nsTextColors[a.nutriscore]||'white'};padding:2px 8px;border-radius:10px;font-weight:700;">Nutri-Score ${a.nutriscore}</span>`
+      : '';
 
     // Construire les micronutriments sélectionnés
     const allNutrients = NUTRIENT_GROUPS.flatMap(g => g.nutrients);
@@ -3516,6 +3525,78 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js'));
   }
+
+  // =============================================
+  // NUTRI-SCORE ACTUALISÉ 2023 (calcul local)
+  // Source : NutriScore_algorithmeactualise_20240404.xlsx
+  // Seuils extraits directement des formules Excel (onglet Scenario)
+  // Points A = Energie(0-10) + AGS(0-10) + Sucres(0-15) + Sel(0-20)
+  // Points C = FVL(0-5) + Fibres(0-5) + Proteines(0-7)
+  // Score : si A<11 → A-C ; si A≥11 → A-Fibres-Proteines (FVL exclue)
+  // Lettre : A(<1) B(<3) C(<11) D(<19) E(≥19)
+  // =============================================
+
+  const NS_ENERGIE   = [335,670,1005,1340,1675,2010,2345,2680,3015,3350];
+  const NS_AGS       = [1,2,3,4,5,6,7,8,9,10];
+  const NS_SUCRES    = [3.4,6.8,10,14,17,20,24,27,31,34,37,41,44,48,51];
+  const NS_SEL       = [.2,.4,.6,.8,1,1.2,1.4,1.6,1.8,2,2.2,2.4,2.6,2.8,3,3.2,3.4,3.6,3.8,4];
+  const NS_FIBRES    = [3,4.1,5.2,6.3,7.4];
+  const NS_PROTEINES = [2.4,4.8,7.2,9.6,12,14,17];
+
+  function nsPts(v, seuils) {
+    for (let i = 0; i < seuils.length; i++) if ((+v||0) <= seuils[i]) return i;
+    return seuils.length;
+  }
+  function nsFVL(pct) { return pct > 80 ? 5 : pct > 60 ? 2 : pct > 40 ? 1 : 0; }
+  function nsLetter(score) {
+    if (score <  1) return 'A'; if (score <  3) return 'B';
+    if (score < 11) return 'C'; if (score < 19) return 'D'; return 'E';
+  }
+  function nsColor(l) {
+    return {A:'#038141',B:'#85BB2F',C:'#FECB02',D:'#EE8100',E:'#E63E11'}[l] ?? '#888';
+  }
+  function nsCategorie(nom) {
+    return /bœuf|boeuf|veau|agneau|mouton|steak|entrecôte/i.test(nom||'') ? 'viande_rouge' : 'general';
+  }
+
+  /**
+   * Calcule le Nutri-Score actualisé 2023 depuis un objet aliment NSR.
+   * Lit les clés per100g : kj, sucres, ag_sat, sel, na, fibres, prot
+   * Retourne { lettre, score, pointsA, pointsC } ou null si données insuffisantes.
+   */
+  function computeNutriscore(aliment) {
+    if (!aliment?.per100g) return null;
+    const p   = aliment.per100g;
+    const fvl = aliment.fvl_pct || 0;
+    const cat = nsCategorie(aliment.nom);
+
+    const kj   = +(p.kj  ?? p.energie_kj ?? 0);
+    const sucs = +(p.sucres ?? p.sugars ?? 0);
+    const ags  = +(p.ag_sat ?? p.graisses_saturees ?? p.sfa ?? 0);
+    const sel  = p.sel != null ? +p.sel : (p.na != null ? +p.na * 2.5 / 1000 : 0);
+    const fib  = +(p.fibres ?? p.fiber ?? 0);
+    const prot = +(p.prot ?? p.proteines ?? 0);
+
+    // Si aucune donnée exploitable, on renonce
+    if (!kj && !sucs && !ags && !sel && !fib && !prot) return null;
+
+    const pE = nsPts(kj,   NS_ENERGIE);
+    const pA = nsPts(ags,  NS_AGS);
+    const pS = nsPts(sucs, NS_SUCRES);
+    const pK = nsPts(sel,  NS_SEL);
+    const pointsA = pE + pA + pS + pK;
+
+    const pFVL = nsFVL(fvl);
+    const pF   = nsPts(fib,  NS_FIBRES);
+    const pP   = cat === 'viande_rouge'
+      ? Math.min(nsPts(prot, NS_PROTEINES), 2)
+      : nsPts(prot, NS_PROTEINES);
+    const pointsC = pFVL + pF + pP;
+
+    const score = pointsA < 11 ? pointsA - pointsC : pointsA - pF - pP;
+    return { lettre: nsLetter(score), score, pointsA, pointsC };
+  }
+
 </script>
 </body>
 </html>
