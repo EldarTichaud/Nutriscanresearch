@@ -2054,7 +2054,7 @@
           <div class="settings-row-left">
             <div class="settings-icon">ℹ️</div>
             <div>
-              <div class="settings-label">NutriScanResearch v0.6.6</div>
+              <div class="settings-label">NutriScanResearch v0.6.7</div>
               <div class="settings-value">Prototype de recherche — CHU Poitiers</div>
             </div>
           </div>
@@ -2943,8 +2943,11 @@
 
     identifiedAliments = [];
     showToast('Repas enregistré ✓', 'success');
-    await loadPatientMeals();
-    // Retourner vers l'écran approprié
+    // Revenir sur le jour du repas sauvegardé (aujourd'hui)
+    const _savedDay = new Date().toISOString().split('T')[0];
+    selectedDay = _savedDay;
+    buildPatientDayStrip();
+    await loadPatientMeals(_savedDay);
     if (currentProfile.role === 'patient') goTo('screen-patient-home');
     else goTo('screen-home');
   }
@@ -3769,20 +3772,23 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
   }
 
   function getProjectDates() {
+    var today = new Date().toISOString().split('T')[0];
+    var dates = [];
     if (!currentProjectStartDate || !currentProjectDurationDays) {
-      var dates = [];
       for (var i = 6; i >= 0; i--) {
         var d = new Date(); d.setDate(d.getDate() - i);
         dates.push(d.toISOString().split('T')[0]);
       }
-      return dates;
+    } else {
+      var start = new Date(currentProjectStartDate + 'T12:00:00');
+      for (var i = 0; i < currentProjectDurationDays; i++) {
+        var d = new Date(start); d.setDate(d.getDate() + i);
+        dates.push(d.toISOString().split('T')[0]);
+      }
     }
-    var dates = [];
-    var start = new Date(currentProjectStartDate + 'T12:00:00');
-    for (var i = 0; i < currentProjectDurationDays; i++) {
-      var d = new Date(start); d.setDate(d.getDate() + i);
-      dates.push(d.toISOString().split('T')[0]);
-    }
+    // Toujours inclure aujourd'hui (au cas où hors fenêtre projet)
+    if (!dates.includes(today)) dates.push(today);
+    dates.sort();
     return dates;
   }
 
