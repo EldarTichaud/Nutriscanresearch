@@ -2054,7 +2054,7 @@
           <div class="settings-row-left">
             <div class="settings-icon">ℹ️</div>
             <div>
-              <div class="settings-label">NutriScanResearch v0.6.5</div>
+              <div class="settings-label">NutriScanResearch v0.6.6</div>
               <div class="settings-value">Prototype de recherche — CHU Poitiers</div>
             </div>
           </div>
@@ -2893,7 +2893,10 @@
       const parsed = JSON.parse(clean);
       identifiedAliments = parsed.aliments.map((a, i) => {
         const ns = computeNutriscore(a);
-        return { ...a, idx: i, nutriscore: ns?.lettre ?? a.nutriscore ?? null };
+        return { ...a, idx: i,
+          nutriscore: ns?.lettre ?? a.nutriscore ?? null,
+          nova: correctNova(a.nom, a.nova)
+        };
       });
       document.getElementById('analysis-loading').style.display = 'none';
       renderConfirmScreen();
@@ -3285,7 +3288,7 @@
     const trackNV = dbs.off && document.getElementById('toggle-nova')?.classList.contains('on');
     const extraFields = [
       trackNS ? '"nutriscore": "A" à "E" (lettre unique, null si inconnu)' : '',
-      trackNV ? '"nova": 1 à 4 (entier, null si inconnu)' : '',
+      trackNV ? '"nova": groupe NOVA (1=brut/peu transformé, 2=ingrédient culinaire ex:sucre/sel/huile, 3=transformé, 4=ultra-transformé) — entier 1-4, null si vraiment inconnu' : '',
     ].filter(Boolean);
 
     const extraSchema = {};
@@ -3314,6 +3317,38 @@ Réponds UNIQUEMENT en JSON valide, sans markdown :
 }
 
 Règles : confiance 1-5, quantite_g estimation visuelle, toutes valeurs per100g obligatoires (0 si absent).`;
+  }
+
+
+  // =============================================
+  // NOVA — CORRECTION HARDCODÉE (anti-hallucination)
+  // =============================================
+  // NOVA 2 : ingrédients culinaires (sucre, sel, huiles, farines, vinaigres, beurre…)
+  // NOVA 4 : ultra-transformés connus (sodas, chips, biscuits industriels, nuggets…)
+  const NOVA2_TERMS = [
+    'sucre','sugar','sel ','salt','huile','oil','beurre','butter','farine','flour',
+    'fécule','amidon','starch','vinaigre','vinegar','crème fraîche','sirop','syrup',
+    'miel','honey','margarine','saindoux','lard','ghee','levure chimique',
+    'bicarbonate','gélatine','agar'
+  ];
+  const NOVA4_TERMS = [
+    'soda','cola','chips','biscuit','cookie','nugget','cordon bleu',
+    'pizza surgelée','plat préparé','sauce industrielle','ketchup','mayonnaise industrielle',
+    'céréales petit-déjeuner','barre chocolatée','candy','bonbon','charcuterie','saucisse',
+    'jambon','hot-dog','hamburger','burger','panini industriel'
+  ];
+
+  function correctNova(nom, novaFromAI) {
+    if (!nom) return novaFromAI;
+    const n = nom.toLowerCase();
+    // NOVA 4 prioritaire
+    if (NOVA4_TERMS.some(t => n.includes(t))) return Math.max(novaFromAI || 0, 4);
+    // NOVA 2 minimum si ingrédient culinaire
+    if (NOVA2_TERMS.some(t => n.includes(t))) {
+      // Ne pas rétrograder un NOVA 3 ou 4 vers 2
+      return Math.max(novaFromAI || 2, 2);
+    }
+    return novaFromAI;
   }
 
   // =============================================
@@ -3368,7 +3403,10 @@ Règles : confiance 1-5, quantite_g estimation visuelle, toutes valeurs per100g 
 
       identifiedAliments = parsed.aliments.map((a, i) => {
         const ns = computeNutriscore(a);
-        return { ...a, idx: i, nutriscore: ns?.lettre ?? a.nutriscore ?? null };
+        return { ...a, idx: i,
+          nutriscore: ns?.lettre ?? a.nutriscore ?? null,
+          nova: correctNova(a.nom, a.nova)
+        };
       });
 
       loadingEl.style.display = 'none';
