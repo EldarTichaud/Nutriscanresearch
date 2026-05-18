@@ -1103,6 +1103,42 @@
     display: flex; align-items: center; justify-content: center;
     font-size: 16px; flex-shrink: 0;
   }
+
+  /* DATA SUB-TABS */
+  .data-subtab {
+    flex: 1; padding: 12px 4px; text-align: center;
+    font-size: 12px; font-weight: 600; color: var(--text-light);
+    cursor: pointer; border-bottom: 2.5px solid transparent; transition: all 0.15s;
+  }
+  .data-subtab.active { color: var(--teal); border-bottom-color: var(--teal); }
+
+  /* PATIENT SELECTOR CHIPS */
+  .patient-chip {
+    padding: 7px 14px; border-radius: 20px; border: 1.5px solid var(--border);
+    background: var(--surface); font-size: 13px; font-weight: 500;
+    cursor: pointer; white-space: nowrap; transition: all 0.15s; flex-shrink: 0;
+  }
+  .patient-chip.active { background: var(--teal); color: white; border-color: var(--teal); }
+
+  /* NUTRIENT TABLE */
+  .nutrient-table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 380px; }
+  .nutrient-table th {
+    background: var(--teal); color: white; padding: 8px 5px;
+    text-align: center; font-weight: 600; font-size: 11px; white-space: nowrap;
+  }
+  .nutrient-table td {
+    padding: 8px 5px; text-align: center; border-bottom: 1px solid var(--border); font-size: 12px;
+  }
+  .nutrient-table tr:nth-child(even) td { background: var(--bg); }
+  .nutrient-table td:first-child { font-weight: 600; color: var(--text-mid); text-align: left; white-space: nowrap; }
+
+  /* INV MEAL (read-only, expandable) */
+  .inv-meal-item { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; margin-bottom: 8px; }
+  .inv-meal-item-top { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+  .inv-meal-foods { display: none; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
+  .inv-food-row { display: flex; justify-content: space-between; align-items: center; font-size: 12px; padding: 5px 0; border-bottom: 1px solid var(--border); }
+  .inv-food-row:last-child { border-bottom: none; }
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link rel="manifest" href="manifest.json">
@@ -1414,8 +1450,10 @@
         <button class="btn btn-secondary" onclick="askMealTypeThen('manual')">✏️ Saisir</button>
       </div>
 
-      <!-- Liste des repas du jour -->
-      <div class="section-label">Mes repas d'aujourd'hui</div>
+      <!-- Day strip navigation -->
+      <div class="day-strip" id="patient-day-strip" style="margin-bottom:4px"></div>
+      <!-- Label dynamique -->
+      <div class="section-label" id="patient-meals-label" style="margin-bottom:8px">Mes repas d'aujourd'hui</div>
       <div id="patient-meals-list">
         <div class="empty-state">
           <div class="empty-icon">🍽️</div>
@@ -1445,7 +1483,6 @@
     <div class="bottom-nav">
       <div class="nav-item active"><div class="nav-icon">🥗</div>Mon recueil</div>
       <div class="nav-item" onclick="openPatientProfile()"><div class="nav-icon">👤</div>Profil</div>
-      <div class="nav-item" onclick="showPatientApiKeyModal()"><div class="nav-icon">⚙️</div>Clé API</div>
       <div class="nav-item" id="nav-contact-btn" onclick="showContactInfo()" style="display:none"><div class="nav-icon">✉️</div>Contact</div>
       <div class="nav-item" onclick="logout()"><div class="nav-icon">🚪</div>Déconnexion</div>
       <div class="nav-item" onclick="deleteAccount()" style="color:#e53e3e"><div class="nav-icon">🗑️</div>Supprimer</div>
@@ -1496,16 +1533,32 @@
     </div>
 
     <!-- TAB: DONNÉES -->
-    <div id="tabcontent-data" class="content" style="display:none">
-      <div class="alert alert-info">
-        <span class="alert-icon">📊</span>
-        <span>Export des données disponible une fois le recueil terminé.</span>
+    <div id="tabcontent-data" class="content" style="display:none;padding:0">
+      <div style="display:flex;border-bottom:1px solid var(--border);background:var(--surface);position:sticky;top:0;z-index:4">
+        <div class="data-subtab active" id="dsubtab-patient" onclick="switchDataSubtab('patient')">Par patient</div>
+        <div class="data-subtab" id="dsubtab-croise" onclick="switchDataSubtab('croise')">Vue croisée</div>
+        <div class="data-subtab" id="dsubtab-tableau" onclick="switchDataSubtab('tableau')">Tableau</div>
       </div>
-      <div class="section-label">Aperçu par patient</div>
-      <div id="data-list">
-        <!-- Rempli dynamiquement -->
+      <!-- Vue par patient -->
+      <div id="dview-patient" class="content">
+        <div class="day-strip" id="inv-patient-chips" style="margin-bottom:12px"></div>
+        <div class="day-strip" id="inv-day-strip" style="margin-bottom:12px"></div>
+        <div id="inv-patient-meals"><div class="empty-state"><div class="empty-icon">👤</div><p>Sélectionnez un patient.</p></div></div>
       </div>
-      <button class="btn btn-secondary" style="margin-top:16px">📤 Exporter CSV</button>
+      <!-- Vue croisée -->
+      <div id="dview-croise" class="content" style="display:none">
+        <div class="form-group">
+          <label class="form-label">Date</label>
+          <input type="date" class="form-input" id="croise-date" onchange="loadCroiseeView()" />
+        </div>
+        <div id="inv-croise-content"><div class="empty-state"><div class="empty-icon">📅</div><p>Sélectionnez une date.</p></div></div>
+      </div>
+      <!-- Tableau nutriments -->
+      <div id="dview-tableau" class="content" style="display:none">
+        <div class="day-strip" id="tableau-patient-chips" style="margin-bottom:12px"></div>
+        <div id="inv-tableau-content" style="overflow-x:auto"><div class="empty-state"><div class="empty-icon">📊</div><p>Sélectionnez un patient.</p></div></div>
+        <button class="btn btn-secondary" style="margin-top:16px" onclick="exportCSV()">📤 Exporter CSV</button>
+      </div>
     </div>
   </div>
 
@@ -2001,7 +2054,7 @@
           <div class="settings-row-left">
             <div class="settings-icon">ℹ️</div>
             <div>
-              <div class="settings-label">NutriScanResearch v0.6.4</div>
+              <div class="settings-label">NutriScanResearch v0.6.5</div>
               <div class="settings-value">Prototype de recherche — CHU Poitiers</div>
             </div>
           </div>
@@ -2018,6 +2071,52 @@
         <div class="nav-icon">⚙️</div>
         Paramètres
       </div>
+    </div>
+  </div>
+
+  <!-- ============ SCREEN: MEAL EDIT (Patient) ============ -->
+  <div class="screen" id="screen-meal-edit">
+    <div class="header">
+      <div class="header-row">
+        <div class="back-btn" onclick="cancelMealEdit()">←</div>
+        <h2 id="edit-meal-title">Modifier le repas</h2>
+      </div>
+    </div>
+    <div class="content">
+      <div class="alert alert-warning">
+        <span class="alert-icon">⚠️</span>
+        <span><strong>Données de recherche.</strong> Vos corrections sont visibles par votre investigateur.</span>
+      </div>
+      <div class="section-label">Aliments</div>
+      <div id="edit-foods-container"></div>
+      <button class="btn btn-secondary" style="margin-bottom:12px" onclick="addManualFoodToEdit()">＋ Ajouter un aliment</button>
+      <div class="divider"></div>
+      <div class="form-group">
+        <label class="form-label">Lieu du repas</label>
+        <div class="lieu-grid" id="edit-lieu-grid">
+          <div class="lieu-chip selected" onclick="selectEditLieu(this)">🏠 Domicile</div>
+          <div class="lieu-chip" onclick="selectEditLieu(this)">🏢 Travail</div>
+          <div class="lieu-chip" onclick="selectEditLieu(this)">🍽️ Restaurant</div>
+          <div class="lieu-chip" onclick="selectEditLieu(this)">🏫 Cantine</div>
+          <div class="lieu-chip" onclick="selectEditLieu(this)">🚗 Autre</div>
+        </div>
+      </div>
+      <div class="form-group">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <label class="form-label" style="margin:0">Repas inhabituel ?</label>
+          <div class="toggle" id="edit-toggle-inhabituel" onclick="toggleEditInhabituel()"></div>
+        </div>
+        <div id="edit-inhabituel-note" style="display:none;margin-top:10px">
+          <input type="text" class="form-input" id="edit-inhabituel-note-input" placeholder="Précisez (repas de fête, maladie, voyage…)" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Heure du repas</label>
+        <input type="time" class="form-input" id="edit-meal-time" />
+      </div>
+      <button class="btn btn-primary" onclick="saveMealEdit()" style="margin-bottom:8px">✓ Enregistrer les modifications</button>
+      <button class="btn btn-secondary" onclick="cancelMealEdit()">Annuler</button>
+      <div style="height:32px"></div>
     </div>
   </div>
 
@@ -2212,7 +2311,9 @@
           showToast('Bienvenue ! Complétez votre profil pour commencer.', 'info', 4000);
           openPatientProfile();
         } else {
-          await loadPatientMeals();
+          await loadProjectDates();
+          buildPatientDayStrip();
+          await loadPatientMeals(selectedDay || new Date().toISOString().split('T')[0]);
           // Afficher le message de bienvenue si premier login du jour
           const lastWelcome = localStorage.getItem('nsr_welcome_shown');
           const today = new Date().toDateString();
@@ -2599,13 +2700,7 @@
   }
 
   async function renderDataTab(projectId) {
-    const { data: meals } = await sb.from('meals')
-      .select('patient_id, profiles(prenom), foods(kcal:per100g->kcal, quantite_g)')
-      .eq('project_id', projectId);
-    // Aperçu simplifié
-    document.getElementById('data-list').innerHTML = meals?.length
-      ? '<p style="font-size:13px;color:var(--text-mid)">' + meals.length + ' repas enregistrés au total.</p>'
-      : '<p style="font-size:13px;color:var(--text-light)">Aucun repas enregistré pour l\'instant.</p>';
+    await buildInvestigatorDataTab(projectId);
   }
 
   // =============================================
@@ -2688,12 +2783,17 @@
   // =============================================
   // REPAS PATIENT — CHARGEMENT
   // =============================================
-  async function loadPatientMeals() {
+  async function loadPatientMeals(date) {
     const today = new Date().toISOString().split('T')[0];
+    const targetDate = date || selectedDay || today;
+    if (!selectedDay) selectedDay = today;
+    const nd = new Date(targetDate + 'T12:00:00'); nd.setDate(nd.getDate() + 1);
+    const nextStr = nd.toISOString().split('T')[0];
     const { data: meals } = await sb.from('meals')
       .select('*, foods(nom, emoji, quantite_g, per100g)')
       .eq('patient_id', currentProfile.id)
-      .gte('meal_time', today + 'T00:00:00')
+      .gte('meal_time', targetDate + 'T00:00:00')
+      .lt('meal_time', nextStr + 'T00:00:00')
       .order('meal_time', { ascending: true });
 
     const count = meals?.filter(m => !m.skipped).length || 0;
@@ -2736,13 +2836,16 @@
       const time = m.meal_time ? new Date(m.meal_time).toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit'}) : '';
       const foodsPreview = m.foods?.slice(0,3).map(f => f.emoji||'🍽').join(' ') || '';
       return `
-        <div class="meal-item">
+        <div class="meal-item" onclick="openMealEdit('${m.id}')">
           <div class="meal-time-badge ${mealClasses[m.meal_type]||'autre'}">${mealIcons[m.meal_type]||'🕐'}</div>
           <div class="meal-info">
             <div class="meal-title">${mealLabels[m.meal_type]||'Repas'}</div>
             <div class="meal-sub">${time}${m.location?' · '+m.location:''} ${foodsPreview}</div>
           </div>
-          <div class="meal-kcal">${kcal} kcal</div>
+          <div style="display:flex;align-items:center;gap:4px">
+            <div class="meal-kcal">${kcal} kcal</div>
+            <span style="color:var(--text-light);font-size:16px">›</span>
+          </div>
         </div>`;
     }).join('');
 
@@ -3596,6 +3699,432 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
     const score = pointsA < 11 ? pointsA - pointsC : pointsA - pF - pP;
     return { lettre: nsLetter(score), score, pointsA, pointsC };
   }
+
+  // =============================================
+  // GLOBALS SUPPLÉMENTAIRES
+  // =============================================
+  var selectedDay = null;
+  var currentEditMealId = null;
+  var editMealFoods = [];
+  var currentProjectStartDate = null;
+  var currentProjectDurationDays = null;
+  var _invPatients = [];
+  var _invProject = null;
+  var _invSelectedPatient = null;
+  var _invSelectedDay = null;
+  var _tableauSelectedPatient = null;
+
+  // =============================================
+  // DATES DU PROJET (PATIENT)
+  // =============================================
+  async function loadProjectDates() {
+    if (!currentProject) return;
+    try {
+      const { data: proj } = await sb.from('projects')
+        .select('start_date, duration_days, type').eq('id', currentProject).single();
+      if (proj) {
+        currentProjectStartDate = proj.start_date;
+        const typeMap = { '24h':1,'72h':3,'5j':5,'7j':7 };
+        currentProjectDurationDays = proj.duration_days || typeMap[proj.type] || 7;
+      }
+    } catch(e) { console.warn('loadProjectDates', e); }
+  }
+
+  function getProjectDates() {
+    if (!currentProjectStartDate || !currentProjectDurationDays) {
+      var dates = [];
+      for (var i = 6; i >= 0; i--) {
+        var d = new Date(); d.setDate(d.getDate() - i);
+        dates.push(d.toISOString().split('T')[0]);
+      }
+      return dates;
+    }
+    var dates = [];
+    var start = new Date(currentProjectStartDate + 'T12:00:00');
+    for (var i = 0; i < currentProjectDurationDays; i++) {
+      var d = new Date(start); d.setDate(d.getDate() + i);
+      dates.push(d.toISOString().split('T')[0]);
+    }
+    return dates;
+  }
+
+  function buildPatientDayStrip() {
+    var strip = document.getElementById('patient-day-strip');
+    if (!strip) return;
+    var dates = getProjectDates();
+    var today = new Date().toISOString().split('T')[0];
+    if (!selectedDay || !dates.includes(selectedDay)) selectedDay = today;
+    var dayNames = ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'];
+    strip.innerHTML = dates.map(function(d) {
+      var date = new Date(d + 'T12:00:00');
+      var label = d === today ? 'Auj.' : dayNames[date.getDay()] + ' ' + date.getDate();
+      return '<div class="day-chip' + (d === selectedDay ? ' active' : '') + '" onclick="selectDay(\'' + d + '\')">' + label + '</div>';
+    }).join('');
+    setTimeout(function() {
+      var active = strip.querySelector('.day-chip.active');
+      if (active) active.scrollIntoView({ inline: 'center', behavior: 'smooth', block: 'nearest' });
+    }, 100);
+  }
+
+  async function selectDay(date) {
+    selectedDay = date;
+    buildPatientDayStrip();
+    var today = new Date().toISOString().split('T')[0];
+    var label = document.getElementById('patient-meals-label');
+    if (label) {
+      if (date === today) label.textContent = "Mes repas d'aujourd'hui";
+      else {
+        var d = new Date(date + 'T12:00:00');
+        label.textContent = 'Repas du ' + d.toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long' });
+      }
+    }
+    await loadPatientMeals(date);
+  }
+
+  // =============================================
+  // ÉDITION D'UN REPAS (PATIENT)
+  // =============================================
+  async function openMealEdit(mealId) {
+    currentEditMealId = mealId;
+    const { data: meal } = await sb.from('meals').select('*, foods(*)').eq('id', mealId).single();
+    if (!meal) { showToast('Repas introuvable', 'error'); return; }
+    const mealLabels = { 'petit-dej':'Petit-déjeuner','dejeuner':'Déjeuner','diner':'Dîner','collation':'Collation','autre':'Repas' };
+    document.getElementById('edit-meal-title').textContent = mealLabels[meal.meal_type] || 'Repas';
+    editMealFoods = (meal.foods || []).map(function(f, i) {
+      return { idx:i, nom:f.nom, db_nom:f.db_nom, source:f.source, emoji:f.emoji,
+        quantite_g:f.quantite_g, nutriscore:f.nutriscore, nova:f.nova,
+        per100g:f.per100g||{}, confiance:4, food_id:f.id };
+    });
+    var lieu = meal.location || '🏠 Domicile';
+    document.querySelectorAll('#edit-lieu-grid .lieu-chip').forEach(function(c) {
+      c.classList.toggle('selected', c.textContent.trim() === lieu);
+    });
+    if (meal.meal_time) {
+      var t = new Date(meal.meal_time);
+      document.getElementById('edit-meal-time').value =
+        String(t.getHours()).padStart(2,'0') + ':' + String(t.getMinutes()).padStart(2,'0');
+    }
+    var tog = document.getElementById('edit-toggle-inhabituel');
+    tog.classList.toggle('on', !!meal.unusual);
+    document.getElementById('edit-inhabituel-note').style.display = meal.unusual ? 'block' : 'none';
+    var noteInput = document.getElementById('edit-inhabituel-note-input');
+    if (noteInput) noteInput.value = meal.unusual_note || '';
+    renderEditFoods();
+    goTo('screen-meal-edit');
+  }
+
+  function renderEditFoods() {
+    identifiedAliments = editMealFoods.map(function(f) { return Object.assign({}, f); });
+    document.getElementById('edit-foods-container').innerHTML =
+      editMealFoods.map(function(a, i) { return buildFoodCard(a, i); }).join('');
+  }
+
+  function cancelMealEdit() {
+    identifiedAliments = []; editMealFoods = []; currentEditMealId = null;
+    goTo('screen-patient-home');
+  }
+
+  function toggleEditInhabituel() {
+    var tog = document.getElementById('edit-toggle-inhabituel');
+    tog.classList.toggle('on');
+    document.getElementById('edit-inhabituel-note').style.display = tog.classList.contains('on') ? 'block' : 'none';
+  }
+
+  function selectEditLieu(el) {
+    document.querySelectorAll('#edit-lieu-grid .lieu-chip').forEach(function(c) { c.classList.remove('selected'); });
+    el.classList.add('selected');
+  }
+
+  async function addManualFoodToEdit() {
+    var name = prompt("Nom de l'aliment à ajouter :");
+    if (!name) return;
+    var idx = editMealFoods.length;
+    var container = document.getElementById('edit-foods-container');
+    container.insertAdjacentHTML('beforeend',
+      '<div id="food-card-' + idx + '" class="food-result-card"><div class="loading-state"><div class="spinner"></div><div class="loading-text">Recherche…</div></div></div>');
+    try {
+      var dbs = Object.entries(activeDatabases).filter(function(e){ return e[1]; }).map(function(e){ return e[0].toUpperCase(); }).join(', ');
+      var response = await fetch('/api/analyze', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 500,
+          messages: [{ role: 'user', content: 'Bases : ' + dbs + '. Valeurs pour 100g de "' + name + '". JSON: {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kcal":0,"prot":0,"lip":0,"gluc":0,"sucres":0,"fibres":0,"eau":0,"sel":0,"ca":0,"fe":0,"vitC":0,"vitD":0,"vitB12":0,"folates":0,"mg":0,"zn":0,"k":0,"omega3":0}}' }]
+        })
+      });
+      var data = await response.json();
+      var parsed = JSON.parse(data.content[0].text.replace(/```json|```/g,'').trim());
+      var newFood = Object.assign({ nom:name, quantite_g:100, confiance:3, idx:idx }, parsed);
+      editMealFoods.push(newFood);
+      identifiedAliments = editMealFoods.map(function(f){ return Object.assign({},f); });
+      document.getElementById('food-card-' + idx).outerHTML = buildFoodCard(newFood, idx);
+    } catch(e) {
+      var card = document.getElementById('food-card-' + idx);
+      if (card) card.remove();
+    }
+  }
+
+  async function saveMealEdit() {
+    var lieu = document.querySelector('#edit-lieu-grid .lieu-chip.selected')?.textContent.trim() || null;
+    var unusual = document.getElementById('edit-toggle-inhabituel')?.classList.contains('on') || false;
+    var unusualNote = document.getElementById('edit-inhabituel-note-input')?.value || null;
+    var timeInput = document.getElementById('edit-meal-time')?.value;
+    var updatedFoods = identifiedAliments.filter(Boolean).map(function(a) {
+      return {
+        meal_id: currentEditMealId,
+        nom: a.nom, db_nom: a.db_nom, source: a.source, emoji: a.emoji,
+        quantite_g: parseFloat(document.getElementById('qty-' + a.idx)?.value) || a.quantite_g,
+        nutriscore: a.nutriscore || null, nova: a.nova || null, per100g: a.per100g
+      };
+    });
+    var updateData = { location: lieu, unusual: unusual, unusual_note: unusualNote };
+    if (timeInput) {
+      var base = selectedDay || new Date().toISOString().split('T')[0];
+      updateData.meal_time = base + 'T' + timeInput + ':00';
+    }
+    try {
+      var mealErr = (await sb.from('meals').update(updateData).eq('id', currentEditMealId)).error;
+      if (mealErr) throw mealErr;
+      await sb.from('foods').delete().eq('meal_id', currentEditMealId);
+      if (updatedFoods.length) await sb.from('foods').insert(updatedFoods);
+      identifiedAliments = []; editMealFoods = []; currentEditMealId = null;
+      showToast('Repas mis à jour ✓', 'success');
+      await loadPatientMeals(selectedDay);
+      goTo('screen-patient-home');
+    } catch(e) { showToast('Erreur : ' + e.message, 'error'); }
+  }
+
+  // =============================================
+  // INVESTIGATEUR — ONGLET DONNÉES (3 VUES)
+  // =============================================
+  function switchDataSubtab(tab) {
+    ['patient','croise','tableau'].forEach(function(t) {
+      document.getElementById('dsubtab-' + t).classList.toggle('active', t === tab);
+      document.getElementById('dview-' + t).style.display = t === tab ? 'block' : 'none';
+    });
+  }
+
+  async function buildInvestigatorDataTab(projectId) {
+    var projRes = await sb.from('projects').select('start_date, duration_days, type').eq('id', projectId).single();
+    _invProject = projRes.data;
+    var linksRes = await sb.from('project_patients')
+      .select('patient_id, profiles(prenom, nom)').eq('project_id', projectId);
+    _invPatients = linksRes.data || [];
+    var today = new Date().toISOString().split('T')[0];
+    document.getElementById('croise-date').value = today;
+    _renderInvPatientChips('inv-patient-chips', false);
+    _renderInvPatientChips('tableau-patient-chips', true);
+    if (_invPatients.length > 0) {
+      _invSelectedPatient = _invPatients[0].patient_id;
+      _tableauSelectedPatient = _invPatients[0].patient_id;
+      _invSelectedDay = today;
+      _buildInvDayStrip();
+      await loadInvPatientView();
+      await loadTableauView();
+      await loadCroiseeView();
+    }
+  }
+
+  function getInvProjectDates() {
+    if (!_invProject || !_invProject.start_date) {
+      var dates = [];
+      for (var i = 6; i >= 0; i--) {
+        var d = new Date(); d.setDate(d.getDate() - i);
+        dates.push(d.toISOString().split('T')[0]);
+      }
+      return dates;
+    }
+    var typeMap = { '24h':1,'72h':3,'5j':5,'7j':7 };
+    var days = _invProject.duration_days || typeMap[_invProject.type] || 7;
+    var dates = [];
+    var start = new Date(_invProject.start_date + 'T12:00:00');
+    for (var i = 0; i < days; i++) {
+      var d = new Date(start); d.setDate(d.getDate() + i);
+      dates.push(d.toISOString().split('T')[0]);
+    }
+    return dates;
+  }
+
+  function _renderInvPatientChips(containerId, isTableau) {
+    var container = document.getElementById(containerId);
+    if (!container) return;
+    var selectedId = isTableau ? _tableauSelectedPatient : _invSelectedPatient;
+    container.innerHTML = _invPatients.map(function(p) {
+      var name = (p.profiles?.prenom || '?') + ' ' + ((p.profiles?.nom || '').charAt(0)) + '.';
+      return '<div class="patient-chip' + (p.patient_id === selectedId ? ' active' : '') + '" onclick="_invPickPatient(\'' + containerId + '\',\'' + p.patient_id + '\',' + (isTableau?'true':'false') + ')">' + name + '</div>';
+    }).join('');
+  }
+
+  window._invPickPatient = async function(containerId, patientId, isTableau) {
+    if (isTableau) { _tableauSelectedPatient = patientId; _renderInvPatientChips(containerId, true); await loadTableauView(); }
+    else { _invSelectedPatient = patientId; _invSelectedDay = new Date().toISOString().split('T')[0]; _renderInvPatientChips(containerId, false); _buildInvDayStrip(); await loadInvPatientView(); }
+  };
+
+  function _buildInvDayStrip() {
+    var strip = document.getElementById('inv-day-strip');
+    if (!strip) return;
+    var dates = getInvProjectDates();
+    var today = new Date().toISOString().split('T')[0];
+    if (!_invSelectedDay || !dates.includes(_invSelectedDay)) _invSelectedDay = today;
+    var dayNames = ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'];
+    strip.innerHTML = dates.map(function(d) {
+      var date = new Date(d + 'T12:00:00');
+      var label = d === today ? 'Auj.' : dayNames[date.getDay()] + ' ' + date.getDate();
+      return '<div class="day-chip' + (d === _invSelectedDay ? ' active' : '') + '" onclick="_invPickDay(\'' + d + '\')">' + label + '</div>';
+    }).join('');
+  }
+
+  window._invPickDay = async function(date) {
+    _invSelectedDay = date; _buildInvDayStrip(); await loadInvPatientView();
+  };
+
+  async function loadInvPatientView() {
+    var container = document.getElementById('inv-patient-meals');
+    if (!_invSelectedPatient || !currentProject) {
+      container.innerHTML = '<div class="empty-state"><div class="empty-icon">👤</div><p>Sélectionnez un patient.</p></div>'; return;
+    }
+    container.innerHTML = '<div class="loading-state"><div class="spinner"></div><div class="loading-text">Chargement…</div></div>';
+    var date = _invSelectedDay || new Date().toISOString().split('T')[0];
+    var nd = new Date(date + 'T12:00:00'); nd.setDate(nd.getDate() + 1);
+    var nextStr = nd.toISOString().split('T')[0];
+    var { data: meals } = await sb.from('meals')
+      .select('*, foods(*)')
+      .eq('patient_id', _invSelectedPatient)
+      .eq('project_id', currentProject)
+      .gte('meal_time', date + 'T00:00:00')
+      .lt('meal_time', nextStr + 'T00:00:00')
+      .order('meal_time', { ascending: true });
+    if (!meals || meals.length === 0) {
+      container.innerHTML = '<div class="empty-state"><div class="empty-icon">🍽️</div><p>Aucun repas pour ce jour.</p></div>'; return;
+    }
+    const mealIcons = { 'petit-dej':'🌅','dejeuner':'☀️','diner':'🌙','collation':'🍎','autre':'🕐' };
+    const mealLabels = { 'petit-dej':'Petit-déjeuner','dejeuner':'Déjeuner','diner':'Dîner','collation':'Collation','autre':'Repas' };
+    const mealClasses = { 'petit-dej':'matin','dejeuner':'midi','diner':'soir','collation':'autre','autre':'autre' };
+    const nsColors = { A:'#038141',B:'#85BB2F',C:'#FECB02',D:'#EE8100',E:'#E63E11' };
+    const novaColors = { 1:'#2E7D32',2:'#F57F17',3:'#E65100',4:'#B71C1C' };
+
+    container.innerHTML = meals.map(function(m, mi) {
+      if (m.skipped) return '<div class="inv-meal-item"><div class="inv-meal-item-top"><div class="meal-time-badge autre">⊘</div><div class="meal-info"><div class="meal-title">' + (mealLabels[m.meal_type]||'Repas') + ' sauté</div></div></div></div>';
+      var kcal = (m.foods||[]).reduce(function(s,f){ return s + (f.per100g?.kcal ? Math.round(f.per100g.kcal*(f.quantite_g||100)/100) : 0); }, 0);
+      var time = m.meal_time ? new Date(m.meal_time).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}) : '';
+      var foodsHtml = (m.foods||[]).map(function(f) {
+        var qty = f.quantite_g||100;
+        var p = f.per100g||{};
+        var kcalF = p.kcal ? Math.round(p.kcal*qty/100) : 0;
+        var protF = p.prot ? Math.round(p.prot*qty/100*10)/10 : 0;
+        var lipF = p.lip ? Math.round(p.lip*qty/100*10)/10 : 0;
+        var glucF = p.gluc ? Math.round(p.gluc*qty/100*10)/10 : 0;
+        var nsBadge = f.nutriscore ? '<span style="font-size:10px;background:' + (nsColors[f.nutriscore]||'#aaa') + ';color:white;padding:1px 6px;border-radius:8px;font-weight:700">' + f.nutriscore + '</span>' : '';
+        var novaBadge = f.nova ? '<span style="font-size:10px;background:#FFF3E0;color:' + (novaColors[f.nova]||'#555') + ';padding:1px 6px;border-radius:8px;font-weight:700">N' + f.nova + '</span>' : '';
+        return '<div class="inv-food-row"><div style="display:flex;align-items:center;gap:6px;flex:1"><span style="font-size:18px">' + (f.emoji||'🍽️') + '</span><div><div style="font-weight:600;font-size:12px">' + f.nom + '</div><div style="font-size:11px;color:var(--text-light)">' + qty + 'g · ' + kcalF + ' kcal</div></div></div><div style="display:flex;gap:4px;align-items:center">' + nsBadge + novaBadge + '<div style="font-size:10px;color:var(--text-light);text-align:right">P ' + protF + 'g<br>L ' + lipF + 'g<br>G ' + glucF + 'g</div></div></div>';
+      }).join('');
+      return '<div class="inv-meal-item"><div class="inv-meal-item-top" onclick="_toggleInvMeal(' + mi + ')"><div class="meal-time-badge ' + (mealClasses[m.meal_type]||'autre') + '">' + (mealIcons[m.meal_type]||'🕐') + '</div><div class="meal-info"><div class="meal-title">' + (mealLabels[m.meal_type]||'Repas') + '</div><div class="meal-sub">' + time + (m.location?' · '+m.location:'') + ' · ' + (m.foods?.length||0) + ' aliment(s)</div></div><div style="display:flex;align-items:center;gap:4px"><div class="meal-kcal">' + kcal + ' kcal</div><span id="inv-chev-' + mi + '" style="color:var(--text-light);font-size:16px">›</span></div></div><div class="inv-meal-foods" id="inv-foods-' + mi + '">' + foodsHtml + '</div></div>';
+    }).join('');
+  }
+
+  window._toggleInvMeal = function(mi) {
+    var el = document.getElementById('inv-foods-' + mi);
+    var chev = document.getElementById('inv-chev-' + mi);
+    if (!el) return;
+    var open = el.style.display === 'block';
+    el.style.display = open ? 'none' : 'block';
+    if (chev) chev.textContent = open ? '›' : '⌄';
+  };
+
+  async function loadCroiseeView() {
+    var date = document.getElementById('croise-date')?.value;
+    if (!date || !currentProject) return;
+    var container = document.getElementById('inv-croise-content');
+    container.innerHTML = '<div class="loading-state"><div class="spinner"></div><div class="loading-text">Chargement…</div></div>';
+    if (_invPatients.length === 0) { container.innerHTML = '<div class="empty-state"><p>Aucun patient.</p></div>'; return; }
+    var nd = new Date(date + 'T12:00:00'); nd.setDate(nd.getDate() + 1);
+    var nextStr = nd.toISOString().split('T')[0];
+    var results = await Promise.all(_invPatients.map(async function(p) {
+      var { data: meals } = await sb.from('meals').select('skipped, foods(per100g, quantite_g)')
+        .eq('patient_id', p.patient_id).eq('project_id', currentProject)
+        .gte('meal_time', date + 'T00:00:00').lt('meal_time', nextStr + 'T00:00:00');
+      var nonSkipped = (meals||[]).filter(function(m){ return !m.skipped; });
+      var totalKcal = nonSkipped.reduce(function(s,m){ return s + (m.foods||[]).reduce(function(s2,f){ return s2 + (f.per100g?.kcal ? Math.round(f.per100g.kcal*(f.quantite_g||100)/100) : 0); }, 0); }, 0);
+      var skipped = (meals||[]).filter(function(m){ return m.skipped; }).length;
+      return { name:(p.profiles?.prenom||'?')+' '+(p.profiles?.nom||''), totalKcal:totalKcal, mealCount:nonSkipped.length, skipped:skipped };
+    }));
+    container.innerHTML = results.map(function(r) {
+      return '<div class="card" style="padding:14px;margin-bottom:10px"><div style="display:flex;justify-content:space-between;align-items:center"><div style="font-weight:600;font-size:14px">' + r.name + '</div><div class="meal-kcal">' + r.totalKcal + ' kcal</div></div><div style="font-size:12px;color:var(--text-light);margin-top:4px">' + r.mealCount + ' repas' + (r.skipped ? ' · ' + r.skipped + ' sauté(s)' : '') + '</div></div>';
+    }).join('') || '<div class="empty-state"><p>Aucune donnée.</p></div>';
+  }
+
+  async function loadTableauView() {
+    var container = document.getElementById('inv-tableau-content');
+    if (!_tableauSelectedPatient || !currentProject) {
+      container.innerHTML = '<div class="empty-state"><div class="empty-icon">📊</div><p>Sélectionnez un patient.</p></div>'; return;
+    }
+    container.innerHTML = '<div class="loading-state"><div class="spinner"></div><div class="loading-text">Chargement…</div></div>';
+    var dates = getInvProjectDates();
+    var { data: allMeals } = await sb.from('meals').select('*, foods(per100g, quantite_g)')
+      .eq('patient_id', _tableauSelectedPatient).eq('project_id', currentProject)
+      .order('meal_time', { ascending: true });
+    var byDate = {};
+    (allMeals||[]).forEach(function(m) {
+      var d = m.meal_time ? m.meal_time.split('T')[0] : null;
+      if (!d) return;
+      if (!byDate[d]) byDate[d] = [];
+      byDate[d].push(m);
+    });
+    var dayNames = ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'];
+    var rows = dates.map(function(d) {
+      var meals = (byDate[d]||[]).filter(function(m){ return !m.skipped; });
+      var kcal=0,prot=0,lip=0,gluc=0,fibres=0,sel=0;
+      meals.forEach(function(m){ (m.foods||[]).forEach(function(f){
+        var qty=f.quantite_g||100; var p=f.per100g||{};
+        kcal += Math.round((p.kcal||0)*qty/100);
+        prot += Math.round((p.prot||0)*qty/100*10)/10;
+        lip += Math.round((p.lip||0)*qty/100*10)/10;
+        gluc += Math.round((p.gluc||0)*qty/100*10)/10;
+        fibres += Math.round((p.fibres||0)*qty/100*10)/10;
+        sel += Math.round((p.sel||0)*qty/100*100)/100;
+      });});
+      var date = new Date(d + 'T12:00:00');
+      var label = dayNames[date.getDay()] + ' ' + date.getDate() + '/' + (date.getMonth()+1);
+      var has = meals.length > 0;
+      var nd = has?'':'color:var(--text-light)';
+      return '<tr><td>' + label + '</td>' +
+        '<td style="' + nd + '">' + (has?kcal:'—') + '</td>' +
+        '<td style="' + nd + '">' + (has?prot+'g':'—') + '</td>' +
+        '<td style="' + nd + '">' + (has?lip+'g':'—') + '</td>' +
+        '<td style="' + nd + '">' + (has?gluc+'g':'—') + '</td>' +
+        '<td style="' + nd + '">' + (has?fibres+'g':'—') + '</td>' +
+        '<td style="' + nd + '">' + (has?sel+'g':'—') + '</td></tr>';
+    }).join('');
+    container.innerHTML = '<table class="nutrient-table"><thead><tr><th>Jour</th><th>kcal</th><th>Prot.</th><th>Lip.</th><th>Gluc.</th><th>Fibres</th><th>Sel</th></tr></thead><tbody>' + rows + '</tbody></table>';
+  }
+
+  async function exportCSV() {
+    if (!currentProject) return;
+    var { data: meals } = await sb.from('meals')
+      .select('*, foods(*), profiles(prenom, nom)')
+      .eq('project_id', currentProject).order('meal_time', { ascending: true });
+    if (!meals || meals.length === 0) { showToast('Aucune donnée à exporter', 'warning'); return; }
+    var rows = [['Patient','Date','Heure','Type repas','Lieu','Inhabituel','Aliment','Quantité(g)','kcal','Prot(g)','Lip(g)','Gluc(g)','Fibres(g)','Sel(g)','Nutriscore','NOVA']];
+    meals.forEach(function(m) {
+      var name = (m.profiles?.prenom||'') + ' ' + (m.profiles?.nom||'');
+      var date = m.meal_time ? m.meal_time.split('T')[0] : '';
+      var time = m.meal_time ? new Date(m.meal_time).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}) : '';
+      if (m.skipped) { rows.push([name,date,time,m.meal_type,'','sauté','','','','','','','','','','']); return; }
+      (m.foods||[]).forEach(function(f) {
+        var qty = f.quantite_g||100; var p = f.per100g||{};
+        var r = function(v){ return v ? Math.round(v*qty/100*10)/10 : 0; };
+        rows.push([name,date,time,m.meal_type,m.location||'',m.unusual?'oui':'non',
+          f.nom,qty,Math.round((p.kcal||0)*qty/100),r(p.prot),r(p.lip),r(p.gluc),r(p.fibres),r(p.sel),
+          f.nutriscore||'',f.nova||'']);
+      });
+    });
+    var csv = rows.map(function(r){ return r.map(function(c){ return '"' + String(c).replace(/"/g,'""') + '"'; }).join(','); }).join('\n');
+    var blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = 'NSR_' + (currentProjectName||'export') + '_' + new Date().toISOString().split('T')[0] + '.csv';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+    showToast('Export CSV téléchargé ✓', 'success');
+  }
+
 
 </script>
 </body>
