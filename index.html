@@ -2054,7 +2054,7 @@
           <div class="settings-row-left">
             <div class="settings-icon">ℹ️</div>
             <div>
-              <div class="settings-label">NutriScanResearch v0.6.7</div>
+              <div class="settings-label">NutriScanResearch v0.6.8</div>
               <div class="settings-value">Prototype de recherche — CHU Poitiers</div>
             </div>
           </div>
@@ -3950,8 +3950,14 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
     var projRes = await sb.from('projects').select('start_date, duration_days, type').eq('id', projectId).single();
     _invProject = projRes.data;
     var linksRes = await sb.from('project_patients')
-      .select('patient_id, profiles(prenom, nom)').eq('project_id', projectId);
-    _invPatients = linksRes.data || [];
+      .select('patient_id').eq('project_id', projectId);
+    var rawLinks = linksRes.data || [];
+    // Charger les profils séparément pour contourner les problèmes de FK implicite
+    _invPatients = await Promise.all(rawLinks.map(async function(link) {
+      var { data: prof } = await sb.from('profiles')
+        .select('prenom, nom').eq('id', link.patient_id).maybeSingle();
+      return { patient_id: link.patient_id, profiles: prof || {} };
+    }));
     var today = new Date().toISOString().split('T')[0];
     document.getElementById('croise-date').value = today;
     _renderInvPatientChips('inv-patient-chips', false);
@@ -3959,7 +3965,7 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
     if (_invPatients.length > 0) {
       _invSelectedPatient = _invPatients[0].patient_id;
       _tableauSelectedPatient = _invPatients[0].patient_id;
-      _invSelectedDay = today;
+      _invSelectedDay = today;  // aujourd'hui par défaut
       _buildInvDayStrip();
       await loadInvPatientView();
       await loadTableauView();
@@ -3968,22 +3974,24 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
   }
 
   function getInvProjectDates() {
+    var today = new Date().toISOString().split('T')[0];
+    var dates = [];
     if (!_invProject || !_invProject.start_date) {
-      var dates = [];
       for (var i = 6; i >= 0; i--) {
         var d = new Date(); d.setDate(d.getDate() - i);
         dates.push(d.toISOString().split('T')[0]);
       }
-      return dates;
+    } else {
+      var typeMap = { '24h':1,'72h':3,'5j':5,'7j':7 };
+      var days = _invProject.duration_days || typeMap[_invProject.type] || 7;
+      var start = new Date(_invProject.start_date + 'T12:00:00');
+      for (var i = 0; i < days; i++) {
+        var d = new Date(start); d.setDate(d.getDate() + i);
+        dates.push(d.toISOString().split('T')[0]);
+      }
     }
-    var typeMap = { '24h':1,'72h':3,'5j':5,'7j':7 };
-    var days = _invProject.duration_days || typeMap[_invProject.type] || 7;
-    var dates = [];
-    var start = new Date(_invProject.start_date + 'T12:00:00');
-    for (var i = 0; i < days; i++) {
-      var d = new Date(start); d.setDate(d.getDate() + i);
-      dates.push(d.toISOString().split('T')[0]);
-    }
+    if (!dates.includes(today)) dates.push(today);
+    dates.sort();
     return dates;
   }
 
