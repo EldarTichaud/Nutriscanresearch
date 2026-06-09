@@ -1928,6 +1928,13 @@
         </div>
       </div>
 
+      <!-- Date du repas (saisie rétroactive possible) -->
+      <div class="form-group">
+        <label class="form-label">Date du repas</label>
+        <input type="date" class="form-input" id="meal-date-input" />
+        <div style="font-size:11px;color:var(--text-light);margin-top:4px">Vous pouvez saisir un repas oublié jusqu'à 72h en arrière.</div>
+      </div>
+
       <!-- Heure réelle -->
       <div class="form-group">
         <label class="form-label">Heure du repas</label>
@@ -2054,7 +2061,7 @@
           <div class="settings-row-left">
             <div class="settings-icon">ℹ️</div>
             <div>
-              <div class="settings-label">NutriScanResearch v0.6.8</div>
+              <div class="settings-label">NutriScanResearch v0.6.9</div>
               <div class="settings-value">Prototype de recherche — CHU Poitiers</div>
             </div>
           </div>
@@ -2075,6 +2082,33 @@
   </div>
 
   <!-- ============ SCREEN: MEAL EDIT (Patient) ============ -->
+  <!-- ============ SCREEN: MEAL VIEW (consultation, lecture seule) ============ -->
+  <div class="screen" id="screen-meal-view">
+    <div class="header">
+      <div class="header-row">
+        <div class="back-btn" onclick="goTo('screen-patient-home')">←</div>
+        <h2 id="view-meal-title">Repas</h2>
+      </div>
+      <p id="view-meal-meta">—</p>
+    </div>
+    <div class="content">
+      <div class="section-label">Contenu du repas</div>
+      <div id="view-foods-container"></div>
+
+      <div class="divider"></div>
+
+      <div class="section-label">Valeur nutritionnelle du repas</div>
+      <div class="summary-widget">
+        <div class="summary-macros" id="view-meal-macros"></div>
+      </div>
+      <div id="view-meal-detail-table" style="margin-top:12px"></div>
+
+      <button class="btn btn-primary" id="view-meal-edit-btn" style="margin-top:20px;margin-bottom:8px" onclick="openMealEdit(currentViewMealId)">✏️ Modifier ce repas</button>
+      <button class="btn btn-secondary" onclick="goTo('screen-patient-home')">Retour</button>
+      <div style="height:32px"></div>
+    </div>
+  </div>
+
   <div class="screen" id="screen-meal-edit">
     <div class="header">
       <div class="header-row">
@@ -2575,23 +2609,39 @@
     goTo('screen-project');
   }
 
+  // =============================================
+  // IDENTIFIANT PATIENT PSEUDONYMISÉ
+  // Format : [3 lettres projet]-[n° d'ordre 4 chiffres] (ex. NUT-0001)
+  // Conforme aux recommandations CNIL (pas de nom partiel ni DDN complète)
+  // =============================================
+  function patientIdentifier(projectName, orderIndex) {
+    var code = deaccent(projectName || 'NSR').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3) || 'NSR';
+    return code + '-' + String(orderIndex).padStart(4, '0');
+  }
+
   async function renderPatientsList(projectId) {
     const { data: links } = await sb.from('project_patients')
-      .select('patient_id, profiles(prenom, nom), joined_at')
-      .eq('project_id', projectId);
+      .select('patient_id, profiles(prenom, nom, date_naissance), joined_at')
+      .eq('project_id', projectId)
+      .order('joined_at', { ascending: true });
 
     const { data: tokens } = await sb.from('activation_tokens')
       .select('*').eq('project_id', projectId).eq('used', false);
 
-    const activeHtml = (links || []).map(l => `
+    const activeHtml = (links || []).map((l, i) => {
+      const ident = patientIdentifier(currentProjectName, i + 1);
+      const initials = ((l.profiles?.prenom||'?')[0] + '.' + (l.profiles?.nom||'?')[0] + '.').toUpperCase();
+      const birthYear = l.profiles?.date_naissance ? l.profiles.date_naissance.split('-')[0] : null;
+      return `
       <div class="patient-row">
         <div class="patient-avatar">${(l.profiles?.prenom||'?')[0]}</div>
         <div class="patient-info">
-          <div class="patient-name">${l.profiles?.prenom||''} ${l.profiles?.nom||''}</div>
-          <div class="patient-status"><span class="status-dot active"></span>Compte activé</div>
+          <div class="patient-name">${ident}</div>
+          <div class="patient-status"><span class="status-dot active"></span>${initials}${birthYear ? ' · né(e) en ' + birthYear : ''} · Compte activé</div>
         </div>
         <div style="font-size:20px">✓</div>
-      </div>`).join('');
+      </div>`;
+    }).join('');
 
     const pendingHtml = (tokens || []).map(t => `
       <div class="patient-row">
@@ -2836,7 +2886,7 @@
       const time = m.meal_time ? new Date(m.meal_time).toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit'}) : '';
       const foodsPreview = m.foods?.slice(0,3).map(f => f.emoji||'🍽').join(' ') || '';
       return `
-        <div class="meal-item" onclick="openMealEdit('${m.id}')">
+        <div class="meal-item" onclick="openMealView('${m.id}')">
           <div class="meal-time-badge ${mealClasses[m.meal_type]||'autre'}">${mealIcons[m.meal_type]||'🕐'}</div>
           <div class="meal-info">
             <div class="meal-title">${mealLabels[m.meal_type]||'Repas'}</div>
@@ -2916,9 +2966,13 @@
     const unusual = document.getElementById('toggle-inhabituel')?.classList.contains('on') || false;
     const unusualNote = document.getElementById('inhabituel-note')?.querySelector('input')?.value || null;
     const timeInput = document.querySelector('#screen-confirm input[type="time"]')?.value;
+    // Date du repas : saisie rétroactive possible (bornée à -72h par l'input)
+    const today = new Date().toISOString().split('T')[0];
+    let mealDate = document.getElementById('meal-date-input')?.value || today;
+    if (mealDate > today) mealDate = today; // jamais dans le futur
     const mealTime = timeInput
-      ? new Date().toISOString().split('T')[0] + 'T' + timeInput + ':00'
-      : new Date().toISOString();
+      ? mealDate + 'T' + timeInput + ':00'
+      : (mealDate === today ? new Date().toISOString() : mealDate + 'T12:00:00');
 
     const { data: meal, error } = await sb.from('meals').insert({
       patient_id: currentProfile.id,
@@ -2929,7 +2983,9 @@
       meal_time: mealTime
     }).select().single();
 
-    if (!error && meal) {
+    if (error) { showToast('Erreur : ' + error.message, 'error'); return; }
+
+    if (meal) {
       const foods = identifiedAliments.filter(Boolean).map(a => ({
         meal_id: meal.id,
         nom: a.nom, db_nom: a.db_nom, source: a.source, emoji: a.emoji,
@@ -2943,11 +2999,10 @@
 
     identifiedAliments = [];
     showToast('Repas enregistré ✓', 'success');
-    // Revenir sur le jour du repas sauvegardé (aujourd'hui)
-    const _savedDay = new Date().toISOString().split('T')[0];
-    selectedDay = _savedDay;
+    // Revenir sur le jour du repas sauvegardé (peut être un jour passé)
+    selectedDay = mealDate;
     buildPatientDayStrip();
-    await loadPatientMeals(_savedDay);
+    await selectDay(mealDate);
     if (currentProfile.role === 'patient') goTo('screen-patient-home');
     else goTo('screen-home');
   }
@@ -3432,6 +3487,18 @@ Règles : confiance 1-5, quantite_g estimation visuelle, toutes valeurs per100g 
   function renderConfirmScreen() {
     document.getElementById('foods-container').innerHTML =
       identifiedAliments.map((a, i) => buildFoodCard(a, i)).join('');
+    // Date du repas : par défaut le jour sélectionné dans le bandeau (sinon aujourd'hui),
+    // borné à [aujourd'hui - 72h ; aujourd'hui] pour limiter le biais de rappel.
+    var dateInput = document.getElementById('meal-date-input');
+    if (dateInput) {
+      var today = new Date().toISOString().split('T')[0];
+      var min = new Date(); min.setDate(min.getDate() - 3);
+      var minStr = min.toISOString().split('T')[0];
+      dateInput.min = minStr;
+      dateInput.max = today;
+      var def = (selectedDay && selectedDay >= minStr && selectedDay <= today) ? selectedDay : today;
+      dateInput.value = def;
+    }
   }
 
   function sourceBadge(source) {
@@ -3788,6 +3855,8 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
     }
     // Toujours inclure aujourd'hui (au cas où hors fenêtre projet)
     if (!dates.includes(today)) dates.push(today);
+    // Toujours inclure le jour sélectionné (saisie rétroactive hors fenêtre)
+    if (selectedDay && !dates.includes(selectedDay)) dates.push(selectedDay);
     dates.sort();
     return dates;
   }
@@ -3823,6 +3892,72 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
       }
     }
     await loadPatientMeals(date);
+  }
+
+  // =============================================
+  // CONSULTATION D'UN REPAS (PATIENT, lecture seule)
+  // =============================================
+  let currentViewMealId = null;
+  async function openMealView(mealId) {
+    currentViewMealId = mealId;
+    const { data: meal } = await sb.from('meals').select('*, foods(*)').eq('id', mealId).single();
+    if (!meal) { showToast('Repas introuvable', 'error'); return; }
+    const mealLabels = { 'petit-dej':'Petit-déjeuner','dejeuner':'Déjeuner','diner':'Dîner','collation':'Collation','autre':'Repas' };
+    const nsColors = { A:'#038141',B:'#85BB2F',C:'#FECB02',D:'#EE8100',E:'#E63E11' };
+    const novaColors = { 1:'#2E7D32',2:'#F57F17',3:'#E65100',4:'#B71C1C' };
+
+    document.getElementById('view-meal-title').textContent = mealLabels[meal.meal_type] || 'Repas';
+    var time = meal.meal_time ? new Date(meal.meal_time).toLocaleString('fr-FR',{weekday:'long',day:'numeric',month:'long',hour:'2-digit',minute:'2-digit'}) : '';
+    document.getElementById('view-meal-meta').textContent =
+      time + (meal.location ? ' · ' + meal.location : '') + (meal.unusual ? ' · ⚠️ Repas inhabituel' : '');
+
+    if (meal.skipped) {
+      document.getElementById('view-foods-container').innerHTML =
+        '<div class="empty-state"><div class="empty-icon">⊘</div><p>Repas sauté' + (meal.skip_reason ? ' — ' + meal.skip_reason : '') + '</p></div>';
+      document.getElementById('view-meal-macros').innerHTML = '';
+      document.getElementById('view-meal-detail-table').innerHTML = '';
+      document.getElementById('view-meal-edit-btn').style.display = 'none';
+      goTo('screen-meal-view');
+      return;
+    }
+    document.getElementById('view-meal-edit-btn').style.display = 'block';
+
+    var totals = { kcal:0, prot:0, lip:0, gluc:0, sucres:0, fibres:0, ag_sat:0, sel:0 };
+    var foodsHtml = (meal.foods || []).map(function(f) {
+      var qty = f.quantite_g || 100;
+      var p = f.per100g || {};
+      var kcalF = p.kcal ? Math.round(p.kcal*qty/100) : 0;
+      totals.kcal   += kcalF;
+      totals.prot   += (p.prot||0)*qty/100;
+      totals.lip    += (p.lip||0)*qty/100;
+      totals.gluc   += (p.gluc||0)*qty/100;
+      totals.sucres += (p.sucres||0)*qty/100;
+      totals.fibres += (p.fibres||0)*qty/100;
+      totals.ag_sat += (p.ag_sat||0)*qty/100;
+      totals.sel    += (p.sel||0)*qty/100;
+      var nsBadge = f.nutriscore ? '<span style="font-size:10px;background:'+(nsColors[f.nutriscore]||'#aaa')+';color:white;padding:1px 6px;border-radius:8px;font-weight:700">'+f.nutriscore+'</span>' : '';
+      var novaBadge = f.nova ? '<span style="font-size:10px;background:#FFF3E0;color:'+(novaColors[f.nova]||'#555')+';padding:1px 6px;border-radius:8px;font-weight:700">N'+f.nova+'</span>' : '';
+      return '<div class="meal-item" style="cursor:default"><div style="font-size:22px;margin-right:10px">'+(f.emoji||'🍽️')+'</div><div class="meal-info"><div class="meal-title" style="font-size:14px">'+f.nom+'</div><div class="meal-sub">'+qty+' g · '+kcalF+' kcal'+(f.source?' · '+f.source:'')+'</div></div><div style="display:flex;gap:4px;align-items:center">'+nsBadge+novaBadge+'</div></div>';
+    }).join('');
+    document.getElementById('view-foods-container').innerHTML =
+      foodsHtml || '<div class="empty-state"><p>Aucun aliment enregistré.</p></div>';
+
+    var r1 = function(v){ return Math.round(v*10)/10; };
+    document.getElementById('view-meal-macros').innerHTML =
+      '<div class="macro-item"><div class="macro-value">'+totals.kcal+'</div><div class="macro-sub">kcal</div><div class="macro-label">Énergie</div></div>' +
+      '<div class="macro-item"><div class="macro-value">'+r1(totals.prot)+'g</div><div class="macro-label">Protéines</div></div>' +
+      '<div class="macro-item"><div class="macro-value">'+r1(totals.lip)+'g</div><div class="macro-label">Lipides</div></div>' +
+      '<div class="macro-item"><div class="macro-value">'+r1(totals.gluc)+'g</div><div class="macro-label">Glucides</div></div>';
+
+    document.getElementById('view-meal-detail-table').innerHTML =
+      '<table class="nutrient-table"><tbody>' +
+      '<tr><td>dont sucres</td><td style="text-align:right">'+r1(totals.sucres)+' g</td></tr>' +
+      '<tr><td>dont AG saturés</td><td style="text-align:right">'+r1(totals.ag_sat)+' g</td></tr>' +
+      '<tr><td>Fibres</td><td style="text-align:right">'+r1(totals.fibres)+' g</td></tr>' +
+      '<tr><td>Sel</td><td style="text-align:right">'+(Math.round(totals.sel*100)/100)+' g</td></tr>' +
+      '</tbody></table>';
+
+    goTo('screen-meal-view');
   }
 
   // =============================================
@@ -3864,8 +3999,10 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
   }
 
   function cancelMealEdit() {
-    identifiedAliments = []; editMealFoods = []; currentEditMealId = null;
-    goTo('screen-patient-home');
+    identifiedAliments = []; editMealFoods = [];
+    var backTo = currentEditMealId && currentViewMealId === currentEditMealId ? currentViewMealId : null;
+    currentEditMealId = null;
+    if (backTo) { openMealView(backTo); } else { goTo('screen-patient-home'); }
   }
 
   function toggleEditInhabituel() {
@@ -3950,13 +4087,15 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
     var projRes = await sb.from('projects').select('start_date, duration_days, type').eq('id', projectId).single();
     _invProject = projRes.data;
     var linksRes = await sb.from('project_patients')
-      .select('patient_id').eq('project_id', projectId);
+      .select('patient_id, joined_at').eq('project_id', projectId)
+      .order('joined_at', { ascending: true });
     var rawLinks = linksRes.data || [];
     // Charger les profils séparément pour contourner les problèmes de FK implicite
-    _invPatients = await Promise.all(rawLinks.map(async function(link) {
+    _invPatients = await Promise.all(rawLinks.map(async function(link, i) {
       var { data: prof } = await sb.from('profiles')
         .select('prenom, nom').eq('id', link.patient_id).maybeSingle();
-      return { patient_id: link.patient_id, profiles: prof || {} };
+      return { patient_id: link.patient_id, profiles: prof || {},
+        identifier: patientIdentifier(currentProjectName, i + 1) };
     }));
     var today = new Date().toISOString().split('T')[0];
     document.getElementById('croise-date').value = today;
@@ -4000,7 +4139,7 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
     if (!container) return;
     var selectedId = isTableau ? _tableauSelectedPatient : _invSelectedPatient;
     container.innerHTML = _invPatients.map(function(p) {
-      var name = (p.profiles?.prenom || '?') + ' ' + ((p.profiles?.nom || '').charAt(0)) + '.';
+      var name = p.identifier || ((p.profiles?.prenom || '?') + ' ' + ((p.profiles?.nom || '').charAt(0)) + '.');
       return '<div class="patient-chip' + (p.patient_id === selectedId ? ' active' : '') + '" onclick="_invPickPatient(\'' + containerId + '\',\'' + p.patient_id + '\',' + (isTableau?'true':'false') + ')">' + name + '</div>';
     }).join('');
   }
@@ -4096,7 +4235,7 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
       var nonSkipped = (meals||[]).filter(function(m){ return !m.skipped; });
       var totalKcal = nonSkipped.reduce(function(s,m){ return s + (m.foods||[]).reduce(function(s2,f){ return s2 + (f.per100g?.kcal ? Math.round(f.per100g.kcal*(f.quantite_g||100)/100) : 0); }, 0); }, 0);
       var skipped = (meals||[]).filter(function(m){ return m.skipped; }).length;
-      return { name:(p.profiles?.prenom||'?')+' '+(p.profiles?.nom||''), totalKcal:totalKcal, mealCount:nonSkipped.length, skipped:skipped };
+      return { name: p.identifier || ((p.profiles?.prenom||'?')+' '+(p.profiles?.nom||'')), totalKcal:totalKcal, mealCount:nonSkipped.length, skipped:skipped };
     }));
     container.innerHTML = results.map(function(r) {
       return '<div class="card" style="padding:14px;margin-bottom:10px"><div style="display:flex;justify-content:space-between;align-items:center"><div style="font-weight:600;font-size:14px">' + r.name + '</div><div class="meal-kcal">' + r.totalKcal + ' kcal</div></div><div style="font-size:12px;color:var(--text-light);margin-top:4px">' + r.mealCount + ' repas' + (r.skipped ? ' · ' + r.skipped + ' sauté(s)' : '') + '</div></div>';
