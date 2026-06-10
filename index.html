@@ -2061,7 +2061,7 @@
           <div class="settings-row-left">
             <div class="settings-icon">ℹ️</div>
             <div>
-              <div class="settings-label">NutriScanResearch v0.6.9</div>
+              <div class="settings-label">NutriScanResearch v0.7.0</div>
               <div class="settings-value">Prototype de recherche — CHU Poitiers</div>
             </div>
           </div>
@@ -2325,17 +2325,23 @@
         await loadProjects();
         goTo('screen-home');
       } else {
-        // Charger le projet du patient
+        // Charger le projet du patient (deux requêtes séquentielles :
+        // la jointure imbriquée projects(...) échoue silencieusement → project_id NULL sur les repas)
         const { data: pp } = await sb.from('project_patients')
-          .select('project_id, projects(name, config)')
+          .select('project_id')
           .eq('patient_id', currentProfile.id).maybeSingle();
-        if (pp && pp.projects) {
-          document.getElementById('patient-project-tag').textContent = 'PROJET ' + (pp.projects.name || '').toUpperCase();
+        if (pp && pp.project_id) {
           currentProject = pp.project_id;
-          if (pp.projects.config?.showBilan) document.getElementById('patient-bilan').style.display = 'block';
-          if (pp.projects.config?.contact_email) {
-            currentContactEmail = pp.projects.config.contact_email;
-            document.getElementById('nav-contact-btn').style.display = 'flex';
+          // Détails du projet via une requête séparée
+          const { data: proj } = await sb.from('projects')
+            .select('name, config').eq('id', pp.project_id).maybeSingle();
+          if (proj) {
+            document.getElementById('patient-project-tag').textContent = 'PROJET ' + (proj.name || '').toUpperCase();
+            if (proj.config?.showBilan) document.getElementById('patient-bilan').style.display = 'block';
+            if (proj.config?.contact_email) {
+              currentContactEmail = proj.config.contact_email;
+              document.getElementById('nav-contact-btn').style.display = 'flex';
+            }
           }
         }
         document.getElementById('patient-greeting').textContent =
@@ -2962,6 +2968,10 @@
   // VALIDATION ET SAUVEGARDE D'UN REPAS
   // =============================================
   async function validateMeal() {
+    if (!currentProject) {
+      showToast('Projet non chargé. Reconnectez-vous avant de saisir un repas.', 'error', 5000);
+      return;
+    }
     const lieu = document.querySelector('.lieu-chip.selected')?.textContent.trim() || null;
     const unusual = document.getElementById('toggle-inhabituel')?.classList.contains('on') || false;
     const unusualNote = document.getElementById('inhabituel-note')?.querySelector('input')?.value || null;
