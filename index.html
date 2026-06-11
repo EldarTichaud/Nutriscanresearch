@@ -1534,13 +1534,48 @@
 
     <!-- TAB: DONNÉES -->
     <div id="tabcontent-data" class="content" style="display:none;padding:0">
-      <div style="display:flex;border-bottom:1px solid var(--border);background:var(--surface);position:sticky;top:0;z-index:4">
-        <div class="data-subtab active" id="dsubtab-patient" onclick="switchDataSubtab('patient')">Par patient</div>
-        <div class="data-subtab" id="dsubtab-croise" onclick="switchDataSubtab('croise')">Vue croisée</div>
-        <div class="data-subtab" id="dsubtab-tableau" onclick="switchDataSubtab('tableau')">Tableau</div>
+      <!-- SÉLECTEUR DE PÉRIODE (5C) — partagé entre Compliance et Apports -->
+      <div id="inv-period-bar" style="padding:12px 16px 0;background:var(--surface);border-bottom:1px solid var(--border)">
+        <div class="section-label" style="margin-bottom:8px">Période</div>
+        <div class="day-strip" style="margin-bottom:8px">
+          <div class="day-chip active" id="period-7j"  onclick="_invSetPeriod(7)"  >7 jours</div>
+          <div class="day-chip"        id="period-28j" onclick="_invSetPeriod(28)" >4 semaines</div>
+          <div class="day-chip"        id="period-90j" onclick="_invSetPeriod(90)" >3 mois</div>
+          <div class="day-chip"        id="period-custom" onclick="_invSetPeriodCustom()">Perso.</div>
+        </div>
+        <div id="inv-period-custom-inputs" style="display:none;gap:8px;margin-bottom:8px;align-items:center">
+          <input type="date" class="form-input" id="inv-period-start" style="flex:1" />
+          <span style="color:var(--text-light)">→</span>
+          <input type="date" class="form-input" id="inv-period-end" style="flex:1" onchange="_invApplyCustomPeriod()" />
+        </div>
+        <div id="inv-period-label" style="font-size:11px;color:var(--text-light);margin-bottom:8px"></div>
       </div>
+
+      <!-- Sous-onglets compliance / apports / par patient / croisée / tableau -->
+      <div style="display:flex;border-bottom:1px solid var(--border);background:var(--surface);overflow-x:auto;white-space:nowrap" id="inv-data-subtabs2">
+        <div class="data-subtab active" id="dsubtab2-compliance" onclick="switchDataSubtab2('compliance')">Compliance</div>
+        <div class="data-subtab" id="dsubtab2-apports" onclick="switchDataSubtab2('apports')">Apports</div>
+        <div class="data-subtab" id="dsubtab2-patient" onclick="switchDataSubtab2('patient')">Par patient</div>
+        <div class="data-subtab" id="dsubtab2-croise" onclick="switchDataSubtab2('croise')">Vue croisée</div>
+        <div class="data-subtab" id="dsubtab2-tableau" onclick="switchDataSubtab2('tableau')">Tableau</div>
+      </div>
+
+      <!-- VUE COMPLIANCE (5A) -->
+      <div id="dview2-compliance" class="content">
+        <div id="inv-compliance-content">
+          <div class="empty-state"><div class="empty-icon">📋</div><p>Chargement…</p></div>
+        </div>
+      </div>
+
+      <!-- VUE APPORTS MOYENS (5B) -->
+      <div id="dview2-apports" class="content" style="display:none">
+        <div id="inv-apports-content">
+          <div class="empty-state"><div class="empty-icon">📊</div><p>Chargement…</p></div>
+        </div>
+      </div>
+
       <!-- Vue par patient -->
-      <div id="dview-patient" class="content">
+      <div id="dview-patient" class="content" style="display:none">
         <div class="day-strip" id="inv-patient-chips" style="margin-bottom:12px"></div>
         <div class="day-strip" id="inv-day-strip" style="margin-bottom:12px"></div>
         <div id="inv-patient-meals"><div class="empty-state"><div class="empty-icon">👤</div><p>Sélectionnez un patient.</p></div></div>
@@ -2061,7 +2096,7 @@
           <div class="settings-row-left">
             <div class="settings-icon">ℹ️</div>
             <div>
-              <div class="settings-label">NutriScanResearch v0.7.0</div>
+              <div class="settings-label">NutriScanResearch v0.7.1</div>
               <div class="settings-value">Prototype de recherche — CHU Poitiers</div>
             </div>
           </div>
@@ -3971,8 +4006,248 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
   }
 
   // =============================================
-  // ÉDITION D'UN REPAS (PATIENT)
+  // SÉLECTEUR DE PÉRIODE (5C)
   // =============================================
+  var _invPeriodDays = 7; // par défaut 7 jours
+  var _invPeriodStart = null; // override custom (string YYYY-MM-DD)
+  var _invPeriodEnd = null;
+
+  function _invGetPeriodRange() {
+    var end = new Date(); end.setHours(23,59,59,999);
+    var endStr = end.toISOString().split('T')[0];
+    var start = new Date(); start.setDate(start.getDate() - (_invPeriodDays - 1)); start.setHours(0,0,0,0);
+    var startStr = start.toISOString().split('T')[0];
+    if (_invPeriodStart && _invPeriodEnd) { startStr = _invPeriodStart; endStr = _invPeriodEnd; }
+    return { startStr, endStr };
+  }
+
+  function _invUpdatePeriodLabel() {
+    var { startStr, endStr } = _invGetPeriodRange();
+    var fmt = function(s) {
+      var d = new Date(s + 'T12:00:00');
+      return d.getDate() + '/' + (d.getMonth()+1) + '/' + d.getFullYear();
+    };
+    var el = document.getElementById('inv-period-label');
+    if (el) el.textContent = fmt(startStr) + ' → ' + fmt(endStr);
+  }
+
+  window._invSetPeriod = async function(days) {
+    _invPeriodDays = days; _invPeriodStart = null; _invPeriodEnd = null;
+    ['7j','28j','90j','custom'].forEach(function(id) {
+      var el = document.getElementById('period-' + id);
+      if (el) el.classList.toggle('active', id === days + 'j');
+    });
+    document.getElementById('inv-period-custom-inputs').style.display = 'none';
+    _invUpdatePeriodLabel();
+    await _invRefreshAnalytics();
+  };
+
+  window._invSetPeriodCustom = function() {
+    ['7j','28j','90j'].forEach(function(id) {
+      var el = document.getElementById('period-' + id);
+      if (el) el.classList.remove('active');
+    });
+    document.getElementById('period-custom').classList.add('active');
+    var inputs = document.getElementById('inv-period-custom-inputs');
+    inputs.style.display = 'flex';
+    var today = new Date().toISOString().split('T')[0];
+    var sevenAgo = new Date(); sevenAgo.setDate(sevenAgo.getDate()-6);
+    var sevenAgoStr = sevenAgo.toISOString().split('T')[0];
+    var s = document.getElementById('inv-period-start');
+    var e = document.getElementById('inv-period-end');
+    if (s && !s.value) s.value = sevenAgoStr;
+    if (e && !e.value) e.value = today;
+    _invPeriodStart = s?.value || sevenAgoStr;
+    _invPeriodEnd = e?.value || today;
+    _invUpdatePeriodLabel();
+  };
+
+  window._invApplyCustomPeriod = async function() {
+    _invPeriodStart = document.getElementById('inv-period-start')?.value;
+    _invPeriodEnd = document.getElementById('inv-period-end')?.value;
+    if (!_invPeriodStart || !_invPeriodEnd || _invPeriodStart > _invPeriodEnd) return;
+    _invUpdatePeriodLabel();
+    await _invRefreshAnalytics();
+  };
+
+  async function _invRefreshAnalytics() {
+    var activeTab = document.querySelector('.data-subtab.active')?.id;
+    if (activeTab === 'dsubtab2-compliance') await loadComplianceView();
+    else if (activeTab === 'dsubtab2-apports') await loadApportsView();
+  }
+
+  // =============================================
+  // NAVIGATION SOUS-ONGLETS (remplace switchDataSubtab)
+  // =============================================
+  var _dataSubtab2Views = {
+    'compliance': 'dview2-compliance',
+    'apports':    'dview2-apports',
+    'patient':    'dview-patient',
+    'croise':     'dview-croise',
+    'tableau':    'dview-tableau'
+  };
+
+  window.switchDataSubtab2 = async function(name) {
+    Object.keys(_dataSubtab2Views).forEach(function(k) {
+      var btn = document.getElementById('dsubtab2-' + k);
+      var view = document.getElementById(_dataSubtab2Views[k]);
+      if (btn) btn.classList.toggle('active', k === name);
+      if (view) view.style.display = k === name ? '' : 'none';
+    });
+    if (name === 'compliance') await loadComplianceView();
+    else if (name === 'apports') await loadApportsView();
+  };
+
+  // Keep old switchDataSubtab for any residual calls
+  window.switchDataSubtab = window.switchDataSubtab2;
+
+  // =============================================
+  // COMPLIANCE (5A)
+  // =============================================
+  async function loadComplianceView() {
+    var container = document.getElementById('inv-compliance-content');
+    if (!container || !currentProject || _invPatients.length === 0) {
+      if (container) container.innerHTML = '<div class="empty-state"><div class="empty-icon">📋</div><p>Aucun patient.</p></div>';
+      return;
+    }
+    container.innerHTML = '<div class="loading-state"><div class="spinner"></div><div class="loading-text">Calcul…</div></div>';
+
+    var { startStr, endStr } = _invGetPeriodRange();
+    // Nombre de jours dans la période
+    var msPerDay = 86400000;
+    var nDays = Math.round((new Date(endStr + 'T12:00:00') - new Date(startStr + 'T12:00:00')) / msPerDay) + 1;
+    // Repas attendus par jour : 4 créneaux (petit-dej, dejeuner, diner, collation)
+    var SLOTS = ['petit-dej','dejeuner','diner','collation'];
+    var expectedPerPatient = nDays * SLOTS.length;
+
+    // Charger tous les repas de la période pour ce projet
+    var { data: allMeals } = await sb.from('meals')
+      .select('patient_id, meal_type, skipped, meal_time')
+      .eq('project_id', currentProject)
+      .gte('meal_time', startStr + 'T00:00:00')
+      .lte('meal_time', endStr + 'T23:59:59');
+
+    // Agréger par patient
+    var byPatient = {};
+    _invPatients.forEach(function(p) { byPatient[p.patient_id] = new Set(); });
+    (allMeals || []).forEach(function(m) {
+      if (!byPatient[m.patient_id]) return;
+      var day = m.meal_time ? m.meal_time.split('T')[0] : null;
+      if (!day) return;
+      // Un créneau est renseigné si le repas est enregistré (skipped inclus — signalement valide)
+      var slot = SLOTS.includes(m.meal_type) ? m.meal_type : null;
+      if (slot) byPatient[m.patient_id].add(day + '_' + slot);
+    });
+
+    // Totaux projet
+    var totalExpected = _invPatients.length * expectedPerPatient;
+    var totalFilled = _invPatients.reduce(function(s, p) { return s + byPatient[p.patient_id].size; }, 0);
+    var globalPct = totalExpected > 0 ? Math.round(totalFilled / totalExpected * 100) : 0;
+    var globalColor = globalPct >= 80 ? '#038141' : globalPct >= 50 ? '#E67E00' : '#E63E11';
+
+    var patientsHtml = _invPatients.map(function(p) {
+      var filled = byPatient[p.patient_id].size;
+      var pct = expectedPerPatient > 0 ? Math.round(filled / expectedPerPatient * 100) : 0;
+      var color = pct >= 80 ? '#038141' : pct >= 50 ? '#E67E00' : '#E63E11';
+      var barW = Math.min(pct, 100);
+      var name = p.identifier || ((p.profiles?.prenom||'?') + ' ' + (p.profiles?.nom||''));
+      return '<div class="card" style="padding:14px;margin-bottom:10px">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">' +
+        '<div style="font-weight:600;font-size:13px">' + name + '</div>' +
+        '<div style="font-weight:700;color:' + color + ';font-size:15px">' + pct + '%</div>' +
+        '</div>' +
+        '<div style="background:var(--border);border-radius:4px;height:6px;margin-bottom:6px">' +
+        '<div style="background:' + color + ';width:' + barW + '%;height:6px;border-radius:4px;transition:width .3s"></div></div>' +
+        '<div style="font-size:11px;color:var(--text-light)">' + filled + ' / ' + expectedPerPatient + ' créneaux · ' + nDays + ' j × 4 créneaux</div>' +
+        '</div>';
+    }).join('');
+
+    container.innerHTML =
+      '<div class="card" style="padding:16px;margin-bottom:16px;background:var(--teal);color:white">' +
+      '<div style="font-size:12px;opacity:.8;margin-bottom:2px">Compliance globale du projet</div>' +
+      '<div style="font-size:28px;font-weight:800">' + globalPct + '%</div>' +
+      '<div style="font-size:12px;opacity:.8">' + totalFilled + ' / ' + totalExpected + ' créneaux · ' + nDays + ' jour(s)</div>' +
+      '</div>' +
+      '<div class="section-label">Par patient</div>' +
+      patientsHtml;
+  }
+
+  // =============================================
+  // APPORTS MOYENS (5B)
+  // =============================================
+  async function loadApportsView() {
+    var container = document.getElementById('inv-apports-content');
+    if (!container || !currentProject || _invPatients.length === 0) {
+      if (container) container.innerHTML = '<div class="empty-state"><div class="empty-icon">📊</div><p>Aucun patient.</p></div>';
+      return;
+    }
+    container.innerHTML = '<div class="loading-state"><div class="spinner"></div><div class="loading-text">Calcul…</div></div>';
+
+    var { startStr, endStr } = _invGetPeriodRange();
+    var TYPES = ['petit-dej','dejeuner','diner','collation','autre'];
+    var typeLabels = { 'petit-dej':'Petit-déjeuner','dejeuner':'Déjeuner','diner':'Dîner','collation':'Collation','autre':'Autre' };
+
+    var { data: allMeals } = await sb.from('meals')
+      .select('patient_id, meal_type, skipped, foods(per100g, quantite_g)')
+      .eq('project_id', currentProject)
+      .gte('meal_time', startStr + 'T00:00:00')
+      .lte('meal_time', endStr + 'T23:59:59');
+
+    var meals = (allMeals || []).filter(function(m) { return !m.skipped; });
+
+    function calcNutrients(mealList) {
+      var totals = { kcal:0, prot:0, lip:0, gluc:0, fibres:0, sel:0 };
+      var n = mealList.length;
+      mealList.forEach(function(m) {
+        (m.foods||[]).forEach(function(f) {
+          var qty = f.quantite_g || 100; var p = f.per100g || {};
+          totals.kcal  += (p.kcal||0)*qty/100;
+          totals.prot  += (p.prot||0)*qty/100;
+          totals.lip   += (p.lip||0)*qty/100;
+          totals.gluc  += (p.gluc||0)*qty/100;
+          totals.fibres+= (p.fibres||0)*qty/100;
+          totals.sel   += (p.sel||0)*qty/100;
+        });
+      });
+      var r = function(v) { return n > 0 ? Math.round(v/n*10)/10 : 0; };
+      return { kcal:Math.round(totals.kcal/Math.max(n,1)), prot:r(totals.prot), lip:r(totals.lip),
+               gluc:r(totals.gluc), fibres:r(totals.fibres), sel:Math.round(totals.sel/Math.max(n,1)*100)/100, n:n };
+    }
+
+    function nutrientCard(label, avg, n) {
+      return '<div class="card" style="padding:14px;margin-bottom:10px">' +
+        '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px">' +
+        '<div style="font-weight:600;font-size:13px">' + label + '</div>' +
+        '<div style="font-size:11px;color:var(--text-light)">n=' + n + ' repas</div>' +
+        '</div>' +
+        '<div class="summary-macros" style="grid-template-columns:repeat(3,1fr)">' +
+        '<div class="macro-item"><div class="macro-value">' + avg.kcal + '</div><div class="macro-sub">kcal</div><div class="macro-label">Énergie</div></div>' +
+        '<div class="macro-item"><div class="macro-value">' + avg.prot + 'g</div><div class="macro-label">Prot.</div></div>' +
+        '<div class="macro-item"><div class="macro-value">' + avg.lip + 'g</div><div class="macro-label">Lip.</div></div>' +
+        '</div>' +
+        '<table class="nutrient-table" style="margin-top:8px"><tbody>' +
+        '<tr><td>Glucides</td><td style="text-align:right">' + avg.gluc + ' g</td></tr>' +
+        '<tr><td>Fibres</td><td style="text-align:right">' + avg.fibres + ' g</td></tr>' +
+        '<tr><td>Sel</td><td style="text-align:right">' + avg.sel + ' g</td></tr>' +
+        '</tbody></table></div>';
+    }
+
+    // Moyenne globale par repas (tous types)
+    var globalAvg = calcNutrients(meals);
+
+    // Moyenne par type de repas
+    var byTypeHtml = TYPES.map(function(t) {
+      var typeMeals = meals.filter(function(m) { return m.meal_type === t; });
+      if (typeMeals.length === 0) return '';
+      return nutrientCard(typeLabels[t], calcNutrients(typeMeals), typeMeals.length);
+    }).join('');
+
+    container.innerHTML =
+      '<div class="section-label">Moyenne par repas (tous types)</div>' +
+      nutrientCard('Tous repas confondus', globalAvg, globalAvg.n) +
+      '<div class="section-label" style="margin-top:16px">Par type de repas</div>' +
+      (byTypeHtml || '<div class="empty-state"><p>Aucun repas dans cette période.</p></div>');
+  }
   async function openMealEdit(mealId) {
     currentEditMealId = mealId;
     const { data: meal } = await sb.from('meals').select('*, foods(*)').eq('id', mealId).single();
@@ -4111,11 +4386,13 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
     document.getElementById('croise-date').value = today;
     _renderInvPatientChips('inv-patient-chips', false);
     _renderInvPatientChips('tableau-patient-chips', true);
+    _invUpdatePeriodLabel();
     if (_invPatients.length > 0) {
       _invSelectedPatient = _invPatients[0].patient_id;
       _tableauSelectedPatient = _invPatients[0].patient_id;
-      _invSelectedDay = today;  // aujourd'hui par défaut
+      _invSelectedDay = today;
       _buildInvDayStrip();
+      await loadComplianceView();   // Compliance = vue par défaut
       await loadInvPatientView();
       await loadTableauView();
       await loadCroiseeView();
