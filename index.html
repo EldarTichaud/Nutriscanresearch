@@ -1297,6 +1297,11 @@
           <div class="step-circle">3</div>
           <div class="step-label">Profil</div>
         </div>
+        <div class="step-line" id="act-line-3"></div>
+        <div class="step" id="act-step-4">
+          <div class="step-circle">4</div>
+          <div class="step-label">Rappels</div>
+        </div>
       </div>
     </div>
     <div class="content">
@@ -1426,6 +1431,49 @@
       <button class="btn btn-primary" onclick="savePatientProfile()" style="margin-bottom:32px">
         Enregistrer mon profil
       </button>
+    </div>
+  </div>
+
+  <!-- ============ SCREEN: PUSH NOTIFICATION SETUP ============ -->
+  <div class="screen" id="screen-push-setup">
+    <div class="auth-header">
+      <h2>🔔 Mes rappels</h2>
+      <p>Configurez vos horaires de rappel pour ne pas oublier vos repas</p>
+    </div>
+    <div class="content">
+      <div class="alert alert-info">
+        <span class="alert-icon">ℹ️</span>
+        <span>NSR vous enverra une notification à chaque créneau pour vous rappeler de saisir votre repas.</span>
+      </div>
+
+      <div class="section-label">Horaires de rappel</div>
+      <div id="push-times-grid" style="display:grid;gap:10px;margin-bottom:20px">
+        <div class="card" style="padding:14px;display:flex;align-items:center;justify-content:space-between">
+          <div style="display:flex;align-items:center;gap:10px"><span style="font-size:20px">🌅</span><span style="font-weight:600;font-size:14px">Petit-déjeuner</span></div>
+          <input type="time" class="form-input" id="push-time-0" value="08:00" style="width:110px;text-align:center" />
+        </div>
+        <div class="card" style="padding:14px;display:flex;align-items:center;justify-content:space-between">
+          <div style="display:flex;align-items:center;gap:10px"><span style="font-size:20px">☀️</span><span style="font-weight:600;font-size:14px">Déjeuner</span></div>
+          <input type="time" class="form-input" id="push-time-1" value="12:30" style="width:110px;text-align:center" />
+        </div>
+        <div class="card" style="padding:14px;display:flex;align-items:center;justify-content:space-between">
+          <div style="display:flex;align-items:center;gap:10px"><span style="font-size:20px">🍎</span><span style="font-weight:600;font-size:14px">Collation</span></div>
+          <input type="time" class="form-input" id="push-time-2" value="16:00" style="width:110px;text-align:center" />
+        </div>
+        <div class="card" style="padding:14px;display:flex;align-items:center;justify-content:space-between">
+          <div style="display:flex;align-items:center;gap:10px"><span style="font-size:20px">🌙</span><span style="font-weight:600;font-size:14px">Dîner</span></div>
+          <input type="time" class="form-input" id="push-time-3" value="19:30" style="width:110px;text-align:center" />
+        </div>
+      </div>
+
+      <button class="btn btn-primary" id="btn-enable-push" onclick="enablePushNotifications()" style="margin-bottom:12px">
+        🔔 Activer les notifications
+      </button>
+      <button class="btn btn-secondary" onclick="skipPushSetup()" style="margin-bottom:32px">
+        Passer cette étape
+      </button>
+
+      <div id="push-setup-status" style="display:none"></div>
     </div>
   </div>
 
@@ -2096,7 +2144,7 @@
           <div class="settings-row-left">
             <div class="settings-icon">ℹ️</div>
             <div>
-              <div class="settings-label">NutriScanResearch v0.7.2</div>
+              <div class="settings-label">NutriScanResearch v0.7.1</div>
               <div class="settings-value">Prototype de recherche — CHU Poitiers</div>
             </div>
           </div>
@@ -2139,10 +2187,6 @@
       <div id="view-meal-detail-table" style="margin-top:12px"></div>
 
       <button class="btn btn-primary" id="view-meal-edit-btn" style="margin-top:20px;margin-bottom:8px" onclick="openMealEdit(currentViewMealId)">✏️ Modifier ce repas</button>
-      <button class="btn btn-secondary" id="view-meal-error-btn" style="margin-bottom:8px;border-color:#E63E11;color:#E63E11" onclick="flagMealAsError(currentViewMealId)">⚠️ Signaler comme erreur de saisie</button>
-      <div id="view-meal-error-badge" style="display:none;background:#FFF0F0;border:1px solid #E63E11;border-radius:10px;padding:10px 14px;margin-bottom:8px;font-size:13px;color:#E63E11;text-align:center">
-        ⚠️ Ce repas a été signalé comme erreur de saisie.<br><span style="font-size:11px;color:#888">Il est exclu des calculs nutritionnels.</span>
-      </div>
       <button class="btn btn-secondary" onclick="goTo('screen-patient-home')">Retour</button>
       <div style="height:32px"></div>
     </div>
@@ -2682,7 +2726,7 @@
         <div class="patient-avatar">${(l.profiles?.prenom||'?')[0]}</div>
         <div class="patient-info">
           <div class="patient-name">${ident}</div>
-          <div class="patient-status"><span class="status-dot active"></span>${initials}${birthYear ? ' · né(e) en ' + birthYear : ''} · Compte activé</div>
+          <div class="patient-status"><span class="status-dot active"></span>${initials}${birthYear ? ' · né(e) en ' + birthYear : ''} · Compte activé${l.notifications_refused ? ' · <span style="color:#E63E11">🔕 Notifs refusées</span>' : ''}</div>
         </div>
         <div style="font-size:20px">✓</div>
       </div>`;
@@ -2872,8 +2916,98 @@
     document.getElementById('patient-greeting').textContent = 'Bonjour, ' + (updates.prenom || '') + ' !';
     document.getElementById('investigator-name').textContent = (updates.prenom || '') + ' ' + (updates.nom || '');
     await loadPatientMeals();
-    goTo('screen-patient-home');
+    // Si premier accès (pas encore de push subscription) → setup notifications
+    if (!currentProfile._pushConfigured) {
+      goTo('screen-push-setup');
+    } else {
+      goTo('screen-patient-home');
+    }
   }
+
+  // =============================================
+  // NOTIFICATIONS PUSH
+  // =============================================
+  const VAPID_PUBLIC_KEY = 'BLZAXrigkrOZI9wjtEP6d8mq-0FutYPLtTDmROumCBSVjTK8s23KJoYJUQH7OrT9z0D5Nod3CDXkRvwsgJWtP30';
+
+  function urlBase64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const rawData = window.atob(base64);
+    return new Uint8Array([...rawData].map(c => c.charCodeAt(0)));
+  }
+
+  function getPushTimes() {
+    return [0,1,2,3].map(i => document.getElementById('push-time-' + i)?.value || ['08:00','12:30','16:00','19:30'][i]);
+  }
+
+  async function savePushSubscription(subscription, times, refused) {
+    if (!currentProject) return;
+    const payload = {};
+    if (subscription) payload.push_subscription = subscription;
+    if (times) payload.reminder_times = times;
+    if (refused !== undefined) payload.notifications_refused = refused;
+    await sb.from('project_patients')
+      .update(payload)
+      .eq('patient_id', currentProfile.id)
+      .eq('project_id', currentProject);
+    currentProfile._pushConfigured = true;
+  }
+
+  window.enablePushNotifications = async function() {
+    var btn = document.getElementById('btn-enable-push');
+    var status = document.getElementById('push-setup-status');
+    var times = getPushTimes();
+
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      status.style.display = 'block';
+      status.innerHTML = '<div class="alert alert-warning"><span class="alert-icon">⚠️</span><span>Votre navigateur ne supporte pas les notifications push. Installez l\'app sur votre écran d\'accueil et réessayez.</span></div>';
+      return;
+    }
+
+    btn.textContent = '⏳ En attente…'; btn.disabled = true;
+
+    try {
+      const permission = await Notification.requestPermission();
+
+      if (permission !== 'granted') {
+        // Refus → alerter investigateur
+        await savePushSubscription(null, times, true);
+        status.style.display = 'block';
+        status.innerHTML = '<div class="alert alert-warning"><span class="alert-icon">⚠️</span><span>Notifications refusées. Votre investigateur en sera informé. Vous pouvez les activer plus tard dans vos paramètres.</span></div>';
+        btn.textContent = '🔔 Activer les notifications'; btn.disabled = false;
+        setTimeout(() => goTo('screen-patient-home'), 2500);
+        return;
+      }
+
+      const reg = await navigator.serviceWorker.ready;
+      const subscription = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+      });
+
+      await savePushSubscription(subscription.toJSON(), times, false);
+      showToast('Notifications activées ✓', 'success');
+      goTo('screen-patient-home');
+
+    } catch(e) {
+      status.style.display = 'block';
+      status.innerHTML = '<div class="alert alert-danger"><span class="alert-icon">❌</span><span>Erreur : ' + e.message + '</span></div>';
+      btn.textContent = '🔔 Activer les notifications'; btn.disabled = false;
+    }
+  };
+
+  window.skipPushSetup = async function() {
+    var times = getPushTimes();
+    await savePushSubscription(null, times, false);
+    goTo('screen-patient-home');
+  };
+
+  // Modifier les horaires depuis les paramètres patient
+  window.saveReminderTimes = async function() {
+    var times = getPushTimes();
+    await savePushSubscription(null, times, undefined);
+    showToast('Horaires de rappel mis à jour ✓', 'success');
+  };
 
   // =============================================
   // REPAS PATIENT — CHARGEMENT
@@ -2931,15 +3065,14 @@
       const time = m.meal_time ? new Date(m.meal_time).toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit'}) : '';
       const foodsPreview = m.foods?.slice(0,3).map(f => f.emoji||'🍽').join(' ') || '';
       return `
-        <div class="meal-item" onclick="openMealView('${m.id}')" style="${m.entry_error ? 'opacity:.55;' : ''}">
-          ${m.entry_error ? '<div style="background:#FFF0F0;border-radius:6px;padding:2px 8px;font-size:11px;color:#E63E11;margin-bottom:4px;display:inline-block">⚠️ Erreur signalée</div>' : ''}
+        <div class="meal-item" onclick="openMealView('${m.id}')">
           <div class="meal-time-badge ${mealClasses[m.meal_type]||'autre'}">${mealIcons[m.meal_type]||'🕐'}</div>
           <div class="meal-info">
             <div class="meal-title">${mealLabels[m.meal_type]||'Repas'}</div>
             <div class="meal-sub">${time}${m.location?' · '+m.location:''} ${foodsPreview}</div>
           </div>
           <div style="display:flex;align-items:center;gap:4px">
-            <div class="meal-kcal">${m.entry_error ? '<s>'+kcal+'</s>' : kcal+' kcal'}</div>
+            <div class="meal-kcal">${kcal} kcal</div>
             <span style="color:var(--text-light);font-size:16px">›</span>
           </div>
         </div>`;
@@ -3945,29 +4078,6 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
   }
 
   // =============================================
-  // SIGNALEMENT ERREUR DE SAISIE (PATIENT)
-  // Irréversible — met entry_error = true en base
-  // Le repas reste visible mais exclu de tous les calculs
-  // =============================================
-  window.flagMealAsError = async function(mealId) {
-    if (!mealId) return;
-    var confirmed = confirm(
-      'Signaler ce repas comme erreur de saisie ?\n\n' +
-      'Il restera visible mais sera exclu des calculs nutritionnels. ' +
-      'Cette action est irréversible.'
-    );
-    if (!confirmed) return;
-    var { error } = await sb.from('meals')
-      .update({ entry_error: true })
-      .eq('id', mealId)
-      .eq('patient_id', currentProfile.id); // sécurité : seulement ses propres repas
-    if (error) { showToast('Erreur : ' + error.message, 'error'); return; }
-    showToast('Repas signalé comme erreur de saisie.', 'info');
-    // Recharger l'écran de consultation pour afficher le badge
-    await openMealView(mealId);
-  };
-
-  // =============================================
   // CONSULTATION D'UN REPAS (PATIENT, lecture seule)
   // =============================================
   let currentViewMealId = null;
@@ -3990,25 +4100,10 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
       document.getElementById('view-meal-macros').innerHTML = '';
       document.getElementById('view-meal-detail-table').innerHTML = '';
       document.getElementById('view-meal-edit-btn').style.display = 'none';
-      document.getElementById('view-meal-error-btn').style.display = 'none';
-      document.getElementById('view-meal-error-badge').style.display = 'none';
       goTo('screen-meal-view');
       return;
     }
-
-    // Gestion du flag erreur de saisie
-    var errorBadge = document.getElementById('view-meal-error-badge');
-    var errorBtn   = document.getElementById('view-meal-error-btn');
-    var editBtn    = document.getElementById('view-meal-edit-btn');
-    if (meal.entry_error) {
-      errorBadge.style.display = 'block';
-      errorBtn.style.display   = 'none';
-      editBtn.style.display    = 'none';
-    } else {
-      errorBadge.style.display = 'none';
-      errorBtn.style.display   = 'block';
-      editBtn.style.display    = 'block';
-    }
+    document.getElementById('view-meal-edit-btn').style.display = 'block';
 
     var totals = { kcal:0, prot:0, lip:0, gluc:0, sucres:0, fibres:0, ag_sat:0, sel:0 };
     var foodsHtml = (meal.foods || []).map(function(f) {
@@ -4175,7 +4270,6 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
     _invPatients.forEach(function(p) { byPatient[p.patient_id] = new Set(); });
     (allMeals || []).forEach(function(m) {
       if (!byPatient[m.patient_id]) return;
-      if (m.entry_error) return; // exclu des calculs
       var day = m.meal_time ? m.meal_time.split('T')[0] : null;
       if (!day) return;
       // Un créneau est renseigné si le repas est enregistré (skipped inclus — signalement valide)
@@ -4237,7 +4331,7 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
       .gte('meal_time', startStr + 'T00:00:00')
       .lte('meal_time', endStr + 'T23:59:59');
 
-    var meals = (allMeals || []).filter(function(m) { return !m.skipped && !m.entry_error; });
+    var meals = (allMeals || []).filter(function(m) { return !m.skipped; });
 
     function calcNutrients(mealList) {
       var totals = { kcal:0, prot:0, lip:0, gluc:0, fibres:0, sel:0 };
@@ -4416,7 +4510,7 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
     var projRes = await sb.from('projects').select('start_date, duration_days, type').eq('id', projectId).single();
     _invProject = projRes.data;
     var linksRes = await sb.from('project_patients')
-      .select('patient_id, joined_at').eq('project_id', projectId)
+      .select('patient_id, joined_at, notifications_refused, reminder_times').eq('project_id', projectId)
       .order('joined_at', { ascending: true });
     var rawLinks = linksRes.data || [];
     // Charger les profils séparément pour contourner les problèmes de FK implicite
@@ -4525,7 +4619,6 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
 
     container.innerHTML = meals.map(function(m, mi) {
       if (m.skipped) return '<div class="inv-meal-item"><div class="inv-meal-item-top"><div class="meal-time-badge autre">⊘</div><div class="meal-info"><div class="meal-title">' + (mealLabels[m.meal_type]||'Repas') + ' sauté</div></div></div></div>';
-      if (m.entry_error) return '<div class="inv-meal-item" style="opacity:.5;border-left:3px solid #E63E11"><div class="inv-meal-item-top"><div class="meal-time-badge autre">⚠️</div><div class="meal-info"><div class="meal-title">' + (mealLabels[m.meal_type]||'Repas') + '</div><div class="meal-sub" style="color:#E63E11">Erreur de saisie signalée — exclu des calculs</div></div></div></div>';
       var kcal = (m.foods||[]).reduce(function(s,f){ return s + (f.per100g?.kcal ? Math.round(f.per100g.kcal*(f.quantite_g||100)/100) : 0); }, 0);
       var time = m.meal_time ? new Date(m.meal_time).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}) : '';
       var foodsHtml = (m.foods||[]).map(function(f) {
