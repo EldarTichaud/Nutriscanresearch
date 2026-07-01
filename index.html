@@ -2096,7 +2096,7 @@
           <div class="settings-row-left">
             <div class="settings-icon">ℹ️</div>
             <div>
-              <div class="settings-label">NutriScanResearch v0.7.1</div>
+              <div class="settings-label">NutriScanResearch v0.7.2</div>
               <div class="settings-value">Prototype de recherche — CHU Poitiers</div>
             </div>
           </div>
@@ -2139,6 +2139,10 @@
       <div id="view-meal-detail-table" style="margin-top:12px"></div>
 
       <button class="btn btn-primary" id="view-meal-edit-btn" style="margin-top:20px;margin-bottom:8px" onclick="openMealEdit(currentViewMealId)">✏️ Modifier ce repas</button>
+      <button class="btn btn-secondary" id="view-meal-error-btn" style="margin-bottom:8px;border-color:#E63E11;color:#E63E11" onclick="flagMealAsError(currentViewMealId)">⚠️ Signaler comme erreur de saisie</button>
+      <div id="view-meal-error-badge" style="display:none;background:#FFF0F0;border:1px solid #E63E11;border-radius:10px;padding:10px 14px;margin-bottom:8px;font-size:13px;color:#E63E11;text-align:center">
+        ⚠️ Ce repas a été signalé comme erreur de saisie.<br><span style="font-size:11px;color:#888">Il est exclu des calculs nutritionnels.</span>
+      </div>
       <button class="btn btn-secondary" onclick="goTo('screen-patient-home')">Retour</button>
       <div style="height:32px"></div>
     </div>
@@ -2927,14 +2931,15 @@
       const time = m.meal_time ? new Date(m.meal_time).toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit'}) : '';
       const foodsPreview = m.foods?.slice(0,3).map(f => f.emoji||'🍽').join(' ') || '';
       return `
-        <div class="meal-item" onclick="openMealView('${m.id}')">
+        <div class="meal-item" onclick="openMealView('${m.id}')" style="${m.entry_error ? 'opacity:.55;' : ''}">
+          ${m.entry_error ? '<div style="background:#FFF0F0;border-radius:6px;padding:2px 8px;font-size:11px;color:#E63E11;margin-bottom:4px;display:inline-block">⚠️ Erreur signalée</div>' : ''}
           <div class="meal-time-badge ${mealClasses[m.meal_type]||'autre'}">${mealIcons[m.meal_type]||'🕐'}</div>
           <div class="meal-info">
             <div class="meal-title">${mealLabels[m.meal_type]||'Repas'}</div>
             <div class="meal-sub">${time}${m.location?' · '+m.location:''} ${foodsPreview}</div>
           </div>
           <div style="display:flex;align-items:center;gap:4px">
-            <div class="meal-kcal">${kcal} kcal</div>
+            <div class="meal-kcal">${m.entry_error ? '<s>'+kcal+'</s>' : kcal+' kcal'}</div>
             <span style="color:var(--text-light);font-size:16px">›</span>
           </div>
         </div>`;
@@ -3940,6 +3945,29 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
   }
 
   // =============================================
+  // SIGNALEMENT ERREUR DE SAISIE (PATIENT)
+  // Irréversible — met entry_error = true en base
+  // Le repas reste visible mais exclu de tous les calculs
+  // =============================================
+  window.flagMealAsError = async function(mealId) {
+    if (!mealId) return;
+    var confirmed = confirm(
+      'Signaler ce repas comme erreur de saisie ?\n\n' +
+      'Il restera visible mais sera exclu des calculs nutritionnels. ' +
+      'Cette action est irréversible.'
+    );
+    if (!confirmed) return;
+    var { error } = await sb.from('meals')
+      .update({ entry_error: true })
+      .eq('id', mealId)
+      .eq('patient_id', currentProfile.id); // sécurité : seulement ses propres repas
+    if (error) { showToast('Erreur : ' + error.message, 'error'); return; }
+    showToast('Repas signalé comme erreur de saisie.', 'info');
+    // Recharger l'écran de consultation pour afficher le badge
+    await openMealView(mealId);
+  };
+
+  // =============================================
   // CONSULTATION D'UN REPAS (PATIENT, lecture seule)
   // =============================================
   let currentViewMealId = null;
@@ -3962,10 +3990,25 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
       document.getElementById('view-meal-macros').innerHTML = '';
       document.getElementById('view-meal-detail-table').innerHTML = '';
       document.getElementById('view-meal-edit-btn').style.display = 'none';
+      document.getElementById('view-meal-error-btn').style.display = 'none';
+      document.getElementById('view-meal-error-badge').style.display = 'none';
       goTo('screen-meal-view');
       return;
     }
-    document.getElementById('view-meal-edit-btn').style.display = 'block';
+
+    // Gestion du flag erreur de saisie
+    var errorBadge = document.getElementById('view-meal-error-badge');
+    var errorBtn   = document.getElementById('view-meal-error-btn');
+    var editBtn    = document.getElementById('view-meal-edit-btn');
+    if (meal.entry_error) {
+      errorBadge.style.display = 'block';
+      errorBtn.style.display   = 'none';
+      editBtn.style.display    = 'none';
+    } else {
+      errorBadge.style.display = 'none';
+      errorBtn.style.display   = 'block';
+      editBtn.style.display    = 'block';
+    }
 
     var totals = { kcal:0, prot:0, lip:0, gluc:0, sucres:0, fibres:0, ag_sat:0, sel:0 };
     var foodsHtml = (meal.foods || []).map(function(f) {
@@ -4132,6 +4175,7 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
     _invPatients.forEach(function(p) { byPatient[p.patient_id] = new Set(); });
     (allMeals || []).forEach(function(m) {
       if (!byPatient[m.patient_id]) return;
+      if (m.entry_error) return; // exclu des calculs
       var day = m.meal_time ? m.meal_time.split('T')[0] : null;
       if (!day) return;
       // Un créneau est renseigné si le repas est enregistré (skipped inclus — signalement valide)
@@ -4193,7 +4237,7 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
       .gte('meal_time', startStr + 'T00:00:00')
       .lte('meal_time', endStr + 'T23:59:59');
 
-    var meals = (allMeals || []).filter(function(m) { return !m.skipped; });
+    var meals = (allMeals || []).filter(function(m) { return !m.skipped && !m.entry_error; });
 
     function calcNutrients(mealList) {
       var totals = { kcal:0, prot:0, lip:0, gluc:0, fibres:0, sel:0 };
@@ -4481,6 +4525,7 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
 
     container.innerHTML = meals.map(function(m, mi) {
       if (m.skipped) return '<div class="inv-meal-item"><div class="inv-meal-item-top"><div class="meal-time-badge autre">⊘</div><div class="meal-info"><div class="meal-title">' + (mealLabels[m.meal_type]||'Repas') + ' sauté</div></div></div></div>';
+      if (m.entry_error) return '<div class="inv-meal-item" style="opacity:.5;border-left:3px solid #E63E11"><div class="inv-meal-item-top"><div class="meal-time-badge autre">⚠️</div><div class="meal-info"><div class="meal-title">' + (mealLabels[m.meal_type]||'Repas') + '</div><div class="meal-sub" style="color:#E63E11">Erreur de saisie signalée — exclu des calculs</div></div></div></div>';
       var kcal = (m.foods||[]).reduce(function(s,f){ return s + (f.per100g?.kcal ? Math.round(f.per100g.kcal*(f.quantite_g||100)/100) : 0); }, 0);
       var time = m.meal_time ? new Date(m.meal_time).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}) : '';
       var foodsHtml = (m.foods||[]).map(function(f) {
