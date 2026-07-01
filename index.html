@@ -1757,7 +1757,7 @@
 
     <div class="bottom-nav">
       <div class="nav-item active"><div class="nav-icon">🏠</div>Accueil</div>
-      <div class="nav-item" onclick="goTo('screen-settings');loadSettingsApiKey()"><div class="nav-icon">⚙️</div>Paramètres</div>
+      <div class="nav-item" onclick="goTo('screen-settings');loadSettingsApiKey();loadSettingsNotifications()"><div class="nav-icon">⚙️</div>Paramètres</div>
       <div class="nav-item" onclick="logout()"><div class="nav-icon">🚪</div>Déconnexion</div>
       <div class="nav-item" onclick="deleteAccount()" style="color:#e53e3e"><div class="nav-icon">🗑️</div>Supprimer</div>
     </div>
@@ -2043,46 +2043,37 @@
 
       <div class="settings-section">
         <div class="section-label">Notifications repas</div>
+        <div id="settings-push-status" style="margin-bottom:10px"></div>
         <div class="settings-row">
           <div class="settings-row-left">
             <div class="settings-icon">🌅</div>
-            <div>
-              <div class="settings-label">Petit-déjeuner</div>
-              <div class="settings-value">08:00</div>
-            </div>
+            <div><div class="settings-label">Petit-déjeuner</div></div>
           </div>
-          <input type="time" value="08:00" style="border:none; background:transparent; font-family:'DM Sans',sans-serif; font-size:14px; color:var(--teal); font-weight:600; outline:none;" />
+          <input type="time" id="settings-push-time-0" value="08:00" style="border:none;background:transparent;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--teal);font-weight:600;outline:none;" />
         </div>
         <div class="settings-row">
           <div class="settings-row-left">
             <div class="settings-icon">☀️</div>
-            <div>
-              <div class="settings-label">Déjeuner</div>
-              <div class="settings-value">12:30</div>
-            </div>
+            <div><div class="settings-label">Déjeuner</div></div>
           </div>
-          <input type="time" value="12:30" style="border:none; background:transparent; font-family:'DM Sans',sans-serif; font-size:14px; color:var(--teal); font-weight:600; outline:none;" />
+          <input type="time" id="settings-push-time-1" value="12:30" style="border:none;background:transparent;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--teal);font-weight:600;outline:none;" />
+        </div>
+        <div class="settings-row">
+          <div class="settings-row-left">
+            <div class="settings-icon">🍎</div>
+            <div><div class="settings-label">Collation</div></div>
+          </div>
+          <input type="time" id="settings-push-time-2" value="16:00" style="border:none;background:transparent;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--teal);font-weight:600;outline:none;" />
         </div>
         <div class="settings-row">
           <div class="settings-row-left">
             <div class="settings-icon">🌙</div>
-            <div>
-              <div class="settings-label">Dîner</div>
-              <div class="settings-value">19:30</div>
-            </div>
+            <div><div class="settings-label">Dîner</div></div>
           </div>
-          <input type="time" value="19:30" style="border:none; background:transparent; font-family:'DM Sans',sans-serif; font-size:14px; color:var(--teal); font-weight:600; outline:none;" />
+          <input type="time" id="settings-push-time-3" value="19:30" style="border:none;background:transparent;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--teal);font-weight:600;outline:none;" />
         </div>
-        <div class="settings-row">
-          <div class="settings-row-left">
-            <div class="settings-icon">🍿</div>
-            <div>
-              <div class="settings-label">Rappel collation</div>
-              <div class="settings-value">Activé — 16:00</div>
-            </div>
-          </div>
-          <div class="toggle on" onclick="toggleSwitch(this)"></div>
-        </div>
+        <button class="btn btn-secondary" style="margin-top:12px;margin-bottom:4px" onclick="settingsSaveReminderTimes()">💾 Enregistrer les horaires</button>
+        <button class="btn btn-primary" id="settings-btn-push" style="margin-top:8px" onclick="settingsEnablePush()">🔔 Activer les notifications</button>
       </div>
 
       <div class="settings-section">
@@ -2924,9 +2915,52 @@
     }
   }
 
-  // =============================================
-  // NOTIFICATIONS PUSH
-  // =============================================
+  // Charger les horaires existants dans les paramètres
+  async function loadSettingsNotifications() {
+    if (!currentProfile || !currentProject) return;
+    var { data } = await sb.from('project_patients')
+      .select('push_subscription, reminder_times, notifications_refused')
+      .eq('patient_id', currentProfile.id)
+      .eq('project_id', currentProject)
+      .maybeSingle();
+    if (!data) return;
+    var times = data.reminder_times || ['08:00','12:30','16:00','19:30'];
+    [0,1,2,3].forEach(function(i) {
+      var el = document.getElementById('settings-push-time-' + i);
+      if (el) el.value = times[i] || ['08:00','12:30','16:00','19:30'][i];
+    });
+    var statusEl = document.getElementById('settings-push-status');
+    var btn = document.getElementById('settings-btn-push');
+    if (data.push_subscription) {
+      if (statusEl) statusEl.innerHTML = '<div style="font-size:12px;color:#038141;margin-bottom:4px">✅ Notifications activées</div>';
+      if (btn) btn.style.display = 'none';
+    } else if (data.notifications_refused) {
+      if (statusEl) statusEl.innerHTML = '<div style="font-size:12px;color:#E63E11;margin-bottom:4px">🔕 Notifications refusées — cliquez pour réactiver</div>';
+      if (btn) { btn.style.display = 'block'; btn.textContent = '🔔 Réactiver les notifications'; }
+    } else {
+      if (statusEl) statusEl.innerHTML = '<div style="font-size:12px;color:#E67E00;margin-bottom:4px">⚠️ Notifications non configurées</div>';
+      if (btn) btn.style.display = 'block';
+    }
+  }
+
+  window.settingsSaveReminderTimes = async function() {
+    var times = [0,1,2,3].map(function(i) {
+      return document.getElementById('settings-push-time-' + i)?.value || ['08:00','12:30','16:00','19:30'][i];
+    });
+    await savePushSubscription(null, times, undefined);
+    showToast('Horaires mis à jour ✓', 'success');
+  };
+
+  window.settingsEnablePush = async function() {
+    // Synchroniser les inputs de l'écran paramètres avec ceux du setup
+    [0,1,2,3].forEach(function(i) {
+      var settingsEl = document.getElementById('settings-push-time-' + i);
+      var setupEl   = document.getElementById('push-time-' + i);
+      if (settingsEl && setupEl) setupEl.value = settingsEl.value;
+    });
+    await enablePushNotifications();
+    await loadSettingsNotifications();
+  };
   const VAPID_PUBLIC_KEY = 'BLZAXrigkrOZI9wjtEP6d8mq-0FutYPLtTDmROumCBSVjTK8s23KJoYJUQH7OrT9z0D5Nod3CDXkRvwsgJWtP30';
 
   function urlBase64ToUint8Array(base64String) {
