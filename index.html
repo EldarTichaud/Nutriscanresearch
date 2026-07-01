@@ -4774,6 +4774,7 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
     a.href = url; a.download = 'NSR_' + (currentProjectName||'export') + '_' + new Date().toISOString().split('T')[0] + '.csv';
     document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
     showToast('Export CSV téléchargé ✓', 'success');
+
   }
 
 
