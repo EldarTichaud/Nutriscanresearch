@@ -1578,7 +1578,7 @@
       <div id="config-nutrients-summary" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">
         <!-- Rempli dynamiquement -->
       </div>
-      <button class="btn btn-secondary" onclick="goTo('screen-create')">Modifier la configuration</button>
+      <button class="btn btn-secondary" onclick="openEditProjectConfig(currentProject)">Modifier la configuration</button>
     </div>
 
     <!-- TAB: DONNÉES -->
@@ -1753,7 +1753,7 @@
       </div>
 
       <div class="divider"></div>
-      <button class="btn btn-primary" onclick="goTo('screen-create')">＋ Nouveau projet</button>
+      <button class="btn btn-primary" onclick="openNewProjectForm()">＋ Nouveau projet</button>
     </div>
 
     <div class="bottom-nav">
@@ -1768,8 +1768,8 @@
   <div class="screen" id="screen-create">
     <div class="header">
       <div class="header-row">
-        <div class="back-btn" onclick="goTo('screen-home')">←</div>
-        <h2>Nouveau projet</h2>
+        <div class="back-btn" onclick="cancelCreateOrEdit()">←</div>
+        <h2 id="create-screen-title">Nouveau projet</h2>
       </div>
     </div>
     <div class="content">
@@ -1899,7 +1899,7 @@
           style="resize:vertical;min-height:90px"></textarea>
       </div>
 
-      <button class="btn btn-primary" onclick="startRecueil()" style="margin-top:8px;margin-bottom:32px">
+      <button class="btn btn-primary" id="create-screen-submit-btn" onclick="startRecueil()" style="margin-top:8px;margin-bottom:32px">
         Créer le projet
       </button>
     </div>
@@ -2136,7 +2136,7 @@
           <div class="settings-row-left">
             <div class="settings-icon">ℹ️</div>
             <div>
-              <div class="settings-label">NutriScanResearch v0.7.5</div>
+              <div class="settings-label">NutriScanResearch v0.7.7</div>
               <div class="settings-value">Prototype de recherche — CHU Poitiers</div>
             </div>
           </div>
@@ -2635,6 +2635,116 @@
       </div>`).join('');
   }
 
+  // =============================================
+  // ÉDITION D'UN PROJET EXISTANT (investigateur)
+  // Le formulaire de "screen-create" est réutilisé à la fois pour
+  // créer un nouveau projet et pour modifier un projet en cours.
+  // editingProjectId = null  → mode création (INSERT)
+  // editingProjectId = <id>  → mode édition (UPDATE + historique horodaté)
+  // =============================================
+  let editingProjectId = null;
+
+  function resetCreateForm() {
+    document.getElementById('recueil-name-input').value = '';
+    document.getElementById('custom-days').value = '';
+    document.getElementById('project-start-date').value = '';
+    document.getElementById('project-access-duration').value = '30';
+    document.getElementById('project-contact-email').value = '';
+    document.getElementById('invitation-message').value = '';
+    document.getElementById('notif-matin').value = '08:00';
+    document.getElementById('notif-midi').value = '12:30';
+    document.getElementById('notif-soir').value = '19:30';
+    document.getElementById('notif-collation').value = '16:00';
+    document.querySelectorAll('.type-option').forEach(o => o.classList.remove('selected'));
+    document.querySelector('.type-option[data-type="24h"]')?.classList.add('selected');
+    selectedType = '24h';
+    document.getElementById('custom-days-group').style.display = 'none';
+    activeDatabases = { ciqual: true, off: true, usda: false };
+    ['ciqual','off','usda'].forEach(db => {
+      document.getElementById(`toggle-${db}`)?.classList.toggle('on', activeDatabases[db]);
+      document.getElementById(`db-${db}`)?.setAttribute('data-active', activeDatabases[db]);
+    });
+    document.getElementById('off-options').style.display = 'block';
+    document.getElementById('toggle-show-bilan')?.classList.remove('on');
+    document.getElementById('toggle-nutriscore')?.classList.add('on');
+    document.getElementById('toggle-nova')?.classList.add('on');
+    setNutrientPreset('standard');
+  }
+
+  function cancelCreateOrEdit() {
+    if (editingProjectId) {
+      const backToId = editingProjectId;
+      const backToName = currentProjectName;
+      editingProjectId = null;
+      openProject(backToId, backToName);
+    } else {
+      goTo('screen-home');
+    }
+  }
+
+  function openNewProjectForm() {
+    editingProjectId = null;
+    resetCreateForm();
+    document.getElementById('create-screen-title').textContent = 'Nouveau projet';
+    document.getElementById('create-screen-submit-btn').textContent = 'Créer le projet';
+    goTo('screen-create');
+  }
+
+  async function openEditProjectConfig(projectId) {
+    if (!projectId) return;
+    const { data: proj, error } = await sb.from('projects').select('*').eq('id', projectId).single();
+    if (error || !proj) { showToast('Erreur de chargement du projet', 'error'); return; }
+
+    editingProjectId = projectId;
+    resetCreateForm();
+
+    // Pré-remplissage des champs simples
+    document.getElementById('recueil-name-input').value = proj.name || '';
+    document.getElementById('project-start-date').value = proj.start_date || '';
+    document.getElementById('project-access-duration').value = String(proj.access_duration_days || 30);
+    document.getElementById('project-contact-email').value = proj.config?.contact_email || '';
+    document.getElementById('invitation-message').value = proj.invitation_message || '';
+
+    // Type de recueil
+    document.querySelectorAll('.type-option').forEach(o => o.classList.remove('selected'));
+    const typeEl = document.querySelector(`.type-option[data-type="${proj.type}"]`);
+    if (typeEl) typeEl.classList.add('selected');
+    selectedType = proj.type || '24h';
+    document.getElementById('custom-days-group').style.display = proj.type === 'custom' ? 'block' : 'none';
+    if (proj.duration_days) document.getElementById('custom-days').value = proj.duration_days;
+
+    // Horaires de rappel
+    const nt = proj.config?.notification_times || {};
+    document.getElementById('notif-matin').value = nt.matin || '08:00';
+    document.getElementById('notif-midi').value = nt.midi || '12:30';
+    document.getElementById('notif-soir').value = nt.soir || '19:30';
+    document.getElementById('notif-collation').value = nt.collation || '16:00';
+
+    // Bases de données
+    const dbs = proj.config?.databases || { ciqual: true, off: true, usda: false };
+    activeDatabases = { ciqual: !!dbs.ciqual, off: !!dbs.off, usda: !!dbs.usda };
+    ['ciqual','off','usda'].forEach(db => {
+      document.getElementById(`toggle-${db}`)?.classList.toggle('on', activeDatabases[db]);
+      document.getElementById(`db-${db}`)?.setAttribute('data-active', activeDatabases[db]);
+    });
+    document.getElementById('off-options').style.display = activeDatabases.off ? 'block' : 'none';
+    document.getElementById('toggle-nutriscore')?.classList.toggle('on', proj.config?.nutriscore !== false);
+    document.getElementById('toggle-nova')?.classList.toggle('on', proj.config?.nova !== false);
+
+    // Nutriments suivis
+    if (Array.isArray(proj.config?.nutrients)) {
+      selectedNutrients = new Set(proj.config.nutrients);
+    }
+    renderNutrientGroups();
+
+    // Options patient
+    document.getElementById('toggle-show-bilan')?.classList.toggle('on', !!proj.config?.showBilan);
+
+    document.getElementById('create-screen-title').textContent = 'Modifier le projet';
+    document.getElementById('create-screen-submit-btn').textContent = 'Enregistrer les modifications';
+    goTo('screen-create');
+  }
+
   async function startRecueil() {
     if (!currentProfile) { alert('Session expirée. Veuillez vous reconnecter.'); goTo('screen-login'); return; }
     const name = document.getElementById('recueil-name-input').value.trim();
@@ -2656,6 +2766,69 @@
     };
 
     const customDays = document.getElementById('custom-days')?.value;
+
+    // ─── MODE ÉDITION ────────────────────────────────────────────────
+    if (editingProjectId) {
+      const { data: existing } = await sb.from('projects')
+        .select('type, config, config_history')
+        .eq('id', editingProjectId).single();
+
+      const typeChanged = existing && existing.type !== selectedType;
+      const dbsChanged = existing && JSON.stringify(existing.config?.databases || {}) !== JSON.stringify(activeDatabases);
+
+      // Avertissement explicite si des repas existent déjà et qu'un champ critique change
+      if (typeChanged || dbsChanged) {
+        const { count: mealsCount } = await sb.from('meals')
+          .select('*', { count: 'exact', head: true })
+          .eq('project_id', editingProjectId);
+        if (mealsCount && mealsCount > 0) {
+          const fieldsTxt = [typeChanged && 'le type de recueil', dbsChanged && 'les bases de données']
+            .filter(Boolean).join(' et ');
+          const confirmed = confirm(
+            `⚠️ Attention : ${mealsCount} repas ont déjà été enregistrés dans ce projet.\n\n` +
+            `Vous modifiez ${fieldsTxt}. Ce changement peut affecter la comparabilité ` +
+            `scientifique des données déjà collectées et de celles à venir.\n\n` +
+            `Confirmer la modification ?`
+          );
+          if (!confirmed) return;
+        }
+      }
+
+      // Historique horodaté des modifications
+      const historyEntry = {
+        timestamp: new Date().toISOString(),
+        modified_by: currentProfile.id,
+        changes: {
+          type: typeChanged ? { old: existing.type, new: selectedType } : undefined,
+          databases: dbsChanged ? { old: existing.config?.databases, new: activeDatabases } : undefined
+        }
+      };
+      // Nettoyage des clés undefined
+      Object.keys(historyEntry.changes).forEach(k => historyEntry.changes[k] === undefined && delete historyEntry.changes[k]);
+      const newHistory = [...(existing?.config_history || []), historyEntry];
+
+      const { error } = await sb.from('projects').update({
+        name,
+        type: selectedType,
+        duration_days: customDays ? parseInt(customDays) : null,
+        start_date: document.getElementById('project-start-date')?.value || null,
+        access_duration_days: parseInt(document.getElementById('project-access-duration')?.value) || 30,
+        invitation_message: document.getElementById('invitation-message')?.value || null,
+        config,
+        config_history: newHistory,
+        updated_at: new Date().toISOString()
+      }).eq('id', editingProjectId);
+
+      if (error) { alert('Erreur : ' + error.message); return; }
+      showToast('Configuration mise à jour ✓', 'success');
+      const savedId = editingProjectId;
+      editingProjectId = null;
+      await loadProjects();
+      await openProject(savedId, name);
+      return;
+    }
+
+    // ─── MODE CRÉATION ───────────────────────────────────────────────
     const { data, error } = await sb.from('projects').insert({
       investigateur_id: currentProfile.id,
       name,
@@ -2664,7 +2837,8 @@
       start_date: document.getElementById('project-start-date')?.value || null,
       access_duration_days: parseInt(document.getElementById('project-access-duration')?.value) || 30,
       invitation_message: document.getElementById('invitation-message')?.value || null,
-      config
+      config,
+      config_history: []
     }).select().single();
 
     if (error) { alert('Erreur : ' + error.message); return; }
@@ -3123,6 +3297,19 @@
   }
 
   // =============================================
+  // GESTION D'ERREUR CONVIVIALE POUR LES APPELS IA
+  // =============================================
+  function friendlyAnalysisError(err) {
+    const msg = err?.message || '';
+    // Symptôme d'une réponse non-JSON du serveur (crash/timeout de la fonction Vercel,
+    // surcharge momentanée de l'API) plutôt qu'une vraie erreur applicative.
+    if (/is not valid JSON|Unexpected token/i.test(msg)) {
+      return "Le service d'analyse est momentanément indisponible (surcharge ou délai dépassé). Veuillez réessayer dans quelques instants.";
+    }
+    return msg || "Une erreur inattendue s'est produite.";
+  }
+
+  // =============================================
   // SAISIE MANUELLE DE REPAS
   // =============================================
   function showManualMealModal() {
@@ -3132,9 +3319,12 @@
     document.getElementById('modal-manual-meal').classList.add('active');
   }
 
-  async function analyzeManualMeal() {
-    const text = document.getElementById('manual-meal-input').value.trim();
+  let _lastManualMealText = null;
+
+  async function analyzeManualMeal(retryText) {
+    const text = retryText || document.getElementById('manual-meal-input').value.trim();
     if (!text) return;
+    _lastManualMealText = text;
     document.getElementById('manual-meal-loading').style.display = 'flex';
     document.getElementById('btn-analyze-manual').style.display = 'none';
     closeModal('modal-manual-meal');
@@ -3168,7 +3358,7 @@
     } catch(err) {
       document.getElementById('analysis-loading').style.display = 'none';
       document.getElementById('analysis-results').style.display = 'block';
-      document.getElementById('analysis-results').innerHTML = `<div class="alert alert-danger"><span class="alert-icon">❌</span><span>Erreur : ${err.message}</span></div><button class="btn btn-primary" onclick="goTo('screen-patient-home')">Retour</button>`;
+      document.getElementById('analysis-results').innerHTML = `<div class="alert alert-danger"><span class="alert-icon">❌</span><span>${friendlyAnalysisError(err)}</span></div><button class="btn btn-primary" onclick="retryManualMeal()" style="margin-bottom:8px">🔄 Réessayer</button><button class="btn btn-secondary" onclick="goTo('screen-patient-home')">Retour</button>`;
     }
   }
 
@@ -3627,6 +3817,11 @@ Règles : confiance 1-5, quantite_g estimation visuelle, toutes valeurs per100g 
     return novaFromAI;
   }
 
+  function retryManualMeal() {
+    if (_lastManualMealText) analyzeManualMeal(_lastManualMealText);
+    else goTo('screen-patient-home');
+  }
+
   // =============================================
   // CAPTURE & ANALYSE
   // =============================================
@@ -3694,8 +3889,9 @@ Règles : confiance 1-5, quantite_g estimation visuelle, toutes valeurs per100g 
       resultsEl.style.display = 'block';
       resultsEl.innerHTML = `
         <div class="alert alert-danger"><span class="alert-icon">❌</span>
-        <span>Erreur lors de l'analyse. Vérifiez la connexion et réessayez.<br><small>${err.message}</small></span></div>
-        <button class="btn btn-primary" onclick="goTo('screen-recueil')">Retour</button>`;
+        <span>${friendlyAnalysisError(err)}</span></div>
+        <button class="btn btn-primary" onclick="analyzeFood()" style="margin-bottom:8px">🔄 Réessayer</button>
+        <button class="btn btn-secondary" onclick="goTo('screen-recueil')">Retour</button>`;
     }
   }
 
