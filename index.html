@@ -2136,7 +2136,7 @@
           <div class="settings-row-left">
             <div class="settings-icon">ℹ️</div>
             <div>
-              <div class="settings-label">NutriScanResearch v0.7.7</div>
+              <div class="settings-label">NutriScanResearch v0.7.8</div>
               <div class="settings-value">Prototype de recherche — CHU Poitiers</div>
             </div>
           </div>
@@ -3349,6 +3349,7 @@
         const ns = computeNutriscore(a);
         return { ...a, idx: i,
           nutriscore: ns?.lettre ?? a.nutriscore ?? null,
+          nutriscore_na: ns?.nonApplicable || false,
           nova: correctNova(a.nom, a.nova)
         };
       });
@@ -3876,6 +3877,7 @@ Règles : confiance 1-5, quantite_g estimation visuelle, toutes valeurs per100g 
         const ns = computeNutriscore(a);
         return { ...a, idx: i,
           nutriscore: ns?.lettre ?? a.nutriscore ?? null,
+          nutriscore_na: ns?.nonApplicable || false,
           nova: correctNova(a.nom, a.nova)
         };
       });
@@ -3944,7 +3946,9 @@ Règles : confiance 1-5, quantite_g estimation visuelle, toutes valeurs per100g 
     // Nutriscore badge (calculé depuis per100g — algo actualisé 2023)
     const nsColors = { A:'#038141', B:'#85BB2F', C:'#FECB02', D:'#EE8100', E:'#E63E11' };
     const nsTextColors = { A:'white', B:'white', C:'#1C1C1C', D:'white', E:'white' };
-    const nsBadge = a.nutriscore
+    const nsBadge = (a.nutriscore_na || isAlcoholicBeverage(a.nom))
+      ? `<span title="Nutri-Score non applicable : boisson alcoolisée (>1,2% vol.), exclue du champ d'application officiel du Nutri-Score" style="font-size:10px;background:#e8e8e4;color:#888;padding:2px 8px;border-radius:10px;font-weight:700;">Nutri-Score N/A</span>`
+      : a.nutriscore
       ? `<span title="Nutri-Score calculé localement (algo actualisé 2023) · Valeurs CIQUAL · Note : % fruits/légumes non estimé (pFVL=0)" style="font-size:10px;background:${nsColors[a.nutriscore]||'#aaa'};color:${nsTextColors[a.nutriscore]||'white'};padding:2px 8px;border-radius:10px;font-weight:700;">Nutri-Score ${a.nutriscore}</span>`
       : '';
 
@@ -4181,19 +4185,53 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
     return {A:'#038141',B:'#85BB2F',C:'#FECB02',D:'#EE8100',E:'#E63E11'}[l] ?? '#888';
   }
   function nsCategorie(nom) {
+    if (isAlcoholicBeverage(nom)) return 'alcool';
     return /bœuf|boeuf|veau|agneau|mouton|steak|entrecôte/i.test(nom||'') ? 'viande_rouge' : 'general';
+  }
+
+  // =============================================
+  // BOISSONS ALCOOLISÉES — exclusion du Nutri-Score
+  // Règle officielle Santé publique France : les boissons titrant plus de
+  // 1,2% d'alcool sont hors du champ d'application du Nutri-Score.
+  // La formule (kJ/sucres/AGS/sel/fibres/protéines) ne comptabilise pas
+  // l'énergie de l'éthanol, ce qui produit des scores absurdes (vin → A,
+  // cocktail sucré → B) si on l'applique quand même. Détection par nom.
+  // =============================================
+  function isAlcoholicBeverage(nom) {
+    if (!nom) return false;
+    const ALCOOL_RE = new RegExp(
+      '\\b(' + [
+        'vin(?:\\s|$|s\\b)', 'vin blanc', 'vin rouge', 'vin rosé', 'vin ros[eé]',
+        'champagne', 'prosecco', 'cava', 'crémant', 'cremant',
+        'bi[eè]re', 'cidre', 'poiré', 'poire[\\s]?william',
+        'whisky', 'whiskey', 'bourbon', 'scotch',
+        'vodka', 'gin\\b', 'rhum', 'rum\\b', 'tequila', 'téquila',
+        'cognac', 'armagnac', 'calvados', 'porto', 'martini', 'vermouth',
+        'pastis', 'ricard', 'liqueur', 'digestif', 'apéritif alcoolisé',
+        'kir\\b', 'sangria', 'punch', 'mojito', 'spritz', 'aperol',
+        'margarita', 'daiquiri', 'cai?p[ie]rinha', 'piña colada', 'pina colada',
+        'gin[\\s-]?tonic', 'cocktail', 'alcool'
+      ].join('|') + ')',
+      'i'
+    );
+    return ALCOOL_RE.test(nom);
   }
 
   /**
    * Calcule le Nutri-Score actualisé 2023 depuis un objet aliment NSR.
    * Lit les clés per100g : kj, sucres, ag_sat, sel, na, fibres, prot
-   * Retourne { lettre, score, pointsA, pointsC } ou null si données insuffisantes.
+   * Retourne { lettre, score, pointsA, pointsC } ou { lettre:null, nonApplicable:true }
+   * pour les boissons alcoolisées (hors champ officiel du Nutri-Score), ou null
+   * si les données sont insuffisantes.
    */
   function computeNutriscore(aliment) {
+    const cat = nsCategorie(aliment?.nom);
+    if (cat === 'alcool') {
+      return { lettre: null, score: null, nonApplicable: true, categorie: 'alcool' };
+    }
     if (!aliment?.per100g) return null;
     const p   = aliment.per100g;
     const fvl = aliment.fvl_pct || 0;
-    const cat = nsCategorie(aliment.nom);
 
     const kj   = +(p.kj  ?? p.energie_kj ?? (p.kcal ? Math.round(p.kcal * 4.184) : 0));
     const sucs = +(p.sucres ?? p.sugars ?? 0);
@@ -4349,7 +4387,7 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
       totals.fibres += (p.fibres||0)*qty/100;
       totals.ag_sat += (p.ag_sat||0)*qty/100;
       totals.sel    += (p.sel||0)*qty/100;
-      var nsBadge = f.nutriscore ? '<span style="font-size:10px;background:'+(nsColors[f.nutriscore]||'#aaa')+';color:white;padding:1px 6px;border-radius:8px;font-weight:700">'+f.nutriscore+'</span>' : '';
+      var nsBadge = isAlcoholicBeverage(f.nom) ? '<span title="Non applicable : boisson alcoolisée" style="font-size:10px;background:#e8e8e4;color:#888;padding:1px 6px;border-radius:8px;font-weight:700">N/A</span>' : f.nutriscore ? '<span style="font-size:10px;background:'+(nsColors[f.nutriscore]||'#aaa')+';color:white;padding:1px 6px;border-radius:8px;font-weight:700">'+f.nutriscore+'</span>' : '';
       var novaBadge = f.nova ? '<span style="font-size:10px;background:#FFF3E0;color:'+(novaColors[f.nova]||'#555')+';padding:1px 6px;border-radius:8px;font-weight:700">N'+f.nova+'</span>' : '';
       return '<div class="meal-item" style="cursor:default"><div style="font-size:22px;margin-right:10px">'+(f.emoji||'🍽️')+'</div><div class="meal-info"><div class="meal-title" style="font-size:14px">'+f.nom+'</div><div class="meal-sub">'+qty+' g · '+kcalF+' kcal'+(f.source?' · '+f.source:'')+'</div></div><div style="display:flex;gap:4px;align-items:center">'+nsBadge+novaBadge+'</div></div>';
     }).join('');
@@ -4859,7 +4897,7 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
         var protF = p.prot ? Math.round(p.prot*qty/100*10)/10 : 0;
         var lipF = p.lip ? Math.round(p.lip*qty/100*10)/10 : 0;
         var glucF = p.gluc ? Math.round(p.gluc*qty/100*10)/10 : 0;
-        var nsBadge = f.nutriscore ? '<span style="font-size:10px;background:' + (nsColors[f.nutriscore]||'#aaa') + ';color:white;padding:1px 6px;border-radius:8px;font-weight:700">' + f.nutriscore + '</span>' : '';
+        var nsBadge = isAlcoholicBeverage(f.nom) ? '<span title="Non applicable : boisson alcoolisée" style="font-size:10px;background:#e8e8e4;color:#888;padding:1px 6px;border-radius:8px;font-weight:700">N/A</span>' : f.nutriscore ? '<span style="font-size:10px;background:' + (nsColors[f.nutriscore]||'#aaa') + ';color:white;padding:1px 6px;border-radius:8px;font-weight:700">' + f.nutriscore + '</span>' : '';
         var novaBadge = f.nova ? '<span style="font-size:10px;background:#FFF3E0;color:' + (novaColors[f.nova]||'#555') + ';padding:1px 6px;border-radius:8px;font-weight:700">N' + f.nova + '</span>' : '';
         return '<div class="inv-food-row"><div style="display:flex;align-items:center;gap:6px;flex:1"><span style="font-size:18px">' + (f.emoji||'🍽️') + '</span><div><div style="font-weight:600;font-size:12px">' + f.nom + '</div><div style="font-size:11px;color:var(--text-light)">' + qty + 'g · ' + kcalF + ' kcal</div></div></div><div style="display:flex;gap:4px;align-items:center">' + nsBadge + novaBadge + '<div style="font-size:10px;color:var(--text-light);text-align:right">P ' + protF + 'g<br>L ' + lipF + 'g<br>G ' + glucF + 'g</div></div></div>';
       }).join('');
@@ -4960,7 +4998,7 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
         var r = function(v){ return v ? Math.round(v*qty/100*10)/10 : 0; };
         rows.push([name,date,time,m.meal_type,m.location||'',m.unusual?'oui':'non',
           f.nom,qty,Math.round((p.kcal||0)*qty/100),r(p.prot),r(p.lip),r(p.gluc),r(p.fibres),r(p.sel),
-          f.nutriscore||'',f.nova||'']);
+          isAlcoholicBeverage(f.nom) ? 'N/A' : (f.nutriscore||''),f.nova||'']);
       });
     });
     var csv = rows.map(function(r){ return r.map(function(c){ return '"' + String(c).replace(/"/g,'""') + '"'; }).join(','); }).join('\n');
