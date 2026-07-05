@@ -1,19 +1,19 @@
-export const config = { runtime: 'edge' };
+// Runtime Node standard (au lieu d'Edge) : timeout d'exécution plus généreux,
+// réduit le risque de coupure brutale pendant une analyse IA plus longue.
+export const config = { maxDuration: 60 };
 
-export default async function handler(req) {
+export default async function handler(req, res) {
   if (req.method !== 'POST') {
-    return new Response('Method not allowed', { status: 405 });
+    return res.status(405).send('Method not allowed');
   }
 
   const apiKey = process.env.ANTHROPIC_KEY;
   if (!apiKey) {
-    return new Response(JSON.stringify({ error: { message: 'Clé API non configurée sur le serveur' } }), {
-      status: 500, headers: { 'Content-Type': 'application/json' }
-    });
+    return res.status(500).json({ error: { message: 'Clé API non configurée sur le serveur' } });
   }
 
   try {
-    const body = await req.json();
+    const body = req.body;
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -24,16 +24,9 @@ export default async function handler(req) {
       body: JSON.stringify(body)
     });
     const data = await response.json();
-    return new Response(JSON.stringify(data), {
-      status: response.status,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*'
-      }
-    });
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    return res.status(response.status).json(data);
   } catch (e) {
-    return new Response(JSON.stringify({ error: { message: e.message } }), {
-      status: 500, headers: { 'Content-Type': 'application/json' }
-    });
+    return res.status(500).json({ error: { message: e.message } });
   }
 }
