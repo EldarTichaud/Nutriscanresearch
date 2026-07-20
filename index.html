@@ -1604,6 +1604,7 @@
       <div style="display:flex;border-bottom:1px solid var(--border);background:var(--surface);overflow-x:auto;white-space:nowrap" id="inv-data-subtabs2">
         <div class="data-subtab active" id="dsubtab2-compliance" onclick="switchDataSubtab2('compliance')">Compliance</div>
         <div class="data-subtab" id="dsubtab2-apports" onclick="switchDataSubtab2('apports')">Apports</div>
+        <div class="data-subtab" id="dsubtab2-repartition" onclick="switchDataSubtab2('repartition')">Répartition</div>
         <div class="data-subtab" id="dsubtab2-patient" onclick="switchDataSubtab2('patient')">Par patient</div>
         <div class="data-subtab" id="dsubtab2-croise" onclick="switchDataSubtab2('croise')">Vue croisée</div>
         <div class="data-subtab" id="dsubtab2-tableau" onclick="switchDataSubtab2('tableau')">Tableau</div>
@@ -1620,6 +1621,13 @@
       <div id="dview2-apports" class="content" style="display:none">
         <div id="inv-apports-content">
           <div class="empty-state"><div class="empty-icon">📊</div><p>Chargement…</p></div>
+        </div>
+      </div>
+
+      <!-- VUE RÉPARTITION NUTRI-SCORE / NOVA (5D) -->
+      <div id="dview2-repartition" class="content" style="display:none">
+        <div id="inv-repartition-content">
+          <div class="empty-state"><div class="empty-icon">🥗</div><p>Chargement…</p></div>
         </div>
       </div>
 
@@ -2136,7 +2144,7 @@
           <div class="settings-row-left">
             <div class="settings-icon">ℹ️</div>
             <div>
-              <div class="settings-label">NutriScanResearch v0.7.9</div>
+              <div class="settings-label">NutriScanResearch v0.8.0</div>
               <div class="settings-value">Prototype de recherche — CHU Poitiers</div>
             </div>
           </div>
@@ -4481,17 +4489,19 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
     var activeTab = document.querySelector('.data-subtab.active')?.id;
     if (activeTab === 'dsubtab2-compliance') await loadComplianceView();
     else if (activeTab === 'dsubtab2-apports') await loadApportsView();
+    else if (activeTab === 'dsubtab2-repartition') await loadRepartitionView();
   }
 
   // =============================================
   // NAVIGATION SOUS-ONGLETS (remplace switchDataSubtab)
   // =============================================
   var _dataSubtab2Views = {
-    'compliance': 'dview2-compliance',
-    'apports':    'dview2-apports',
-    'patient':    'dview-patient',
-    'croise':     'dview-croise',
-    'tableau':    'dview-tableau'
+    'compliance':   'dview2-compliance',
+    'apports':      'dview2-apports',
+    'repartition':  'dview2-repartition',
+    'patient':      'dview-patient',
+    'croise':       'dview-croise',
+    'tableau':      'dview-tableau'
   };
 
   window.switchDataSubtab2 = async function(name) {
@@ -4503,6 +4513,7 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
     });
     if (name === 'compliance') await loadComplianceView();
     else if (name === 'apports') await loadApportsView();
+    else if (name === 'repartition') await loadRepartitionView();
   };
 
   // Keep old switchDataSubtab for any residual calls
@@ -4739,6 +4750,142 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
       '<div class="section-label" style="margin-top:16px">Par type de repas</div>' +
       (byTypeHtml || '<div class="empty-state"><p>Aucun repas dans cette période.</p></div>');
   }
+  // =============================================
+  // RÉPARTITION NUTRI-SCORE / NOVA (5D)
+  // =============================================
+  var _repartMode = 'freq'; // 'freq' | 'qty'
+  var _repartUnit = 'g';    // 'g' | 'kcal'
+  var _repartFoodsCache = [];
+
+  window._repartSetMode = function(mode) {
+    _repartMode = mode;
+    renderRepartitionContent();
+  };
+
+  window._repartSetUnit = function(unit) {
+    _repartUnit = unit;
+    renderRepartitionContent();
+  };
+
+  async function loadRepartitionView() {
+    var container = document.getElementById('inv-repartition-content');
+    if (!container || !currentProject || _invPatients.length === 0) {
+      if (container) container.innerHTML = '<div class="empty-state"><div class="empty-icon">🥗</div><p>Aucun patient.</p></div>';
+      return;
+    }
+    container.innerHTML = '<div class="loading-state"><div class="spinner"></div><div class="loading-text">Calcul…</div></div>';
+
+    var { startStr, endStr } = _invGetPeriodRange();
+    var { data: allMeals } = await sb.from('meals')
+      .select('skipped, foods(nom, nutriscore, nova, quantite_g, per100g)')
+      .eq('project_id', currentProject)
+      .gte('meal_time', startStr + 'T00:00:00')
+      .lte('meal_time', endStr + 'T23:59:59');
+
+    var meals = (allMeals || []).filter(function(m) { return !m.skipped; });
+    var foods = [];
+    meals.forEach(function(m) { (m.foods || []).forEach(function(f) { foods.push(f); }); });
+    _repartFoodsCache = foods;
+
+    renderRepartitionContent();
+  }
+
+  function _repartBucketNutriscore(f) {
+    if (isAlcoholicBeverage(f.nom)) return 'na';
+    if (f.nutriscore && ['A','B','C','D','E'].indexOf(f.nutriscore) !== -1) return f.nutriscore;
+    return 'nc';
+  }
+
+  function _repartBucketNova(f) {
+    if (f.nova && [1,2,3,4].indexOf(f.nova) !== -1) return f.nova;
+    return 'nc';
+  }
+
+  function _repartFoodWeight(f) {
+    if (_repartMode === 'freq') return 1;
+    if (_repartUnit === 'kcal') return ((f.per100g||{}).kcal || 0) * (f.quantite_g||100) / 100;
+    return f.quantite_g || 100;
+  }
+
+  function _repartBuildDistribution(foods, bucketFn, order, labels, colors) {
+    var totals = {};
+    order.forEach(function(k) { totals[k] = 0; });
+    var grandTotal = 0;
+    foods.forEach(function(f) {
+      var b = bucketFn(f);
+      var w = _repartFoodWeight(f);
+      totals[b] = (totals[b] || 0) + w;
+      grandTotal += w;
+    });
+    return order.map(function(k) {
+      var val = totals[k] || 0;
+      var pct = grandTotal > 0 ? Math.round(val / grandTotal * 1000) / 10 : 0;
+      return { key:k, label: labels[k], color: colors[k], value: val, pct: pct };
+    });
+  }
+
+  function _repartBarRow(item, unitSuffix) {
+    var valDisplay = _repartMode === 'freq'
+      ? item.value + (item.value === 1 ? ' occurrence' : ' occurrences')
+      : Math.round(item.value) + ' ' + unitSuffix;
+    return '<div style="margin-bottom:10px">' +
+      '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px">' +
+      '<span style="font-weight:600">' + item.label + '</span>' +
+      '<span style="color:var(--text-light)">' + item.pct + '% · ' + valDisplay + '</span>' +
+      '</div>' +
+      '<div style="background:var(--bg);border-radius:6px;height:14px;overflow:hidden">' +
+      '<div style="width:' + item.pct + '%;background:' + item.color + ';height:100%;border-radius:6px"></div>' +
+      '</div></div>';
+  }
+
+  function renderRepartitionContent() {
+    var container = document.getElementById('inv-repartition-content');
+    if (!container) return;
+    var foods = _repartFoodsCache;
+
+    var nsOrder = ['A','B','C','D','E','na','nc'];
+    var nsLabels = { A:'A', B:'B', C:'C', D:'D', E:'E', na:'N/A (alcool)', nc:'Non classé' };
+    var nsColorsLocal = { A:'#038141', B:'#85BB2F', C:'#FECB02', D:'#EE8100', E:'#E63E11', na:'#bbb', nc:'#ddd' };
+
+    var novaOrder = [1,2,3,4,'nc'];
+    var novaLabels = { 1:'Groupe 1 — brut / peu transformé', 2:'Groupe 2 — ingrédient culinaire', 3:'Groupe 3 — transformé', 4:'Groupe 4 — ultra-transformé', nc:'Non classé' };
+    var novaColorsLocal = { 1:'#2E7D32', 2:'#F57F17', 3:'#E65100', 4:'#B71C1C', nc:'#ddd' };
+
+    var unitSuffix = _repartMode === 'freq' ? '' : (_repartUnit === 'kcal' ? 'kcal' : 'g');
+
+    var nsDist = _repartBuildDistribution(foods, _repartBucketNutriscore, nsOrder, nsLabels, nsColorsLocal);
+    var novaDist = _repartBuildDistribution(foods, _repartBucketNova, novaOrder, novaLabels, novaColorsLocal);
+
+    var totalCount = foods.length;
+
+    var toggleHtml =
+      '<div class="day-strip" style="margin-bottom:8px">' +
+      '<div class="day-chip' + (_repartMode==='freq'?' active':'') + '" onclick="_repartSetMode(\'freq\')">Fréquence</div>' +
+      '<div class="day-chip' + (_repartMode==='qty'?' active':'') + '" onclick="_repartSetMode(\'qty\')">Quantité</div>' +
+      '</div>' +
+      (_repartMode === 'qty' ?
+        '<div class="day-strip" style="margin-bottom:12px">' +
+        '<div class="day-chip' + (_repartUnit==='g'?' active':'') + '" onclick="_repartSetUnit(\'g\')">Grammes</div>' +
+        '<div class="day-chip' + (_repartUnit==='kcal'?' active':'') + '" onclick="_repartSetUnit(\'kcal\')">Kcal</div>' +
+        '</div>'
+        : '');
+
+    if (totalCount === 0) {
+      container.innerHTML = toggleHtml + '<div class="empty-state"><p>Aucun aliment dans cette période.</p></div>';
+      return;
+    }
+
+    container.innerHTML = toggleHtml +
+      '<div class="section-label">Répartition Nutri-Score <span style="font-weight:400;color:var(--text-light)">(n=' + totalCount + ' aliments)</span></div>' +
+      '<div class="card" style="padding:14px;margin-bottom:16px">' +
+      nsDist.map(function(item) { return _repartBarRow(item, unitSuffix); }).join('') +
+      '</div>' +
+      '<div class="section-label">Répartition NOVA</div>' +
+      '<div class="card" style="padding:14px">' +
+      novaDist.map(function(item) { return _repartBarRow(item, unitSuffix); }).join('') +
+      '</div>';
+  }
+
   async function openMealEdit(mealId) {
     currentEditMealId = mealId;
     const { data: meal } = await sb.from('meals').select('*, foods(*)').eq('id', mealId).single();
