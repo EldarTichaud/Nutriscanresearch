@@ -2136,7 +2136,7 @@
           <div class="settings-row-left">
             <div class="settings-icon">ℹ️</div>
             <div>
-              <div class="settings-label">NutriScanResearch v0.7.8</div>
+              <div class="settings-label">NutriScanResearch v0.7.9</div>
               <div class="settings-value">Prototype de recherche — CHU Poitiers</div>
             </div>
           </div>
@@ -4511,6 +4511,38 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
   // =============================================
   // COMPLIANCE (5A)
   // =============================================
+  const TYPE_DURATION_MAP = { '24h':1,'72h':3,'5j':5,'7j':7 };
+
+  // Calcule les deux métriques ancrées sur la durée réelle du protocole
+  // (indépendantes du sélecteur de période, qui reste utilisé pour la vue "période").
+  function _invGetProjectAnchoredExpectations() {
+    const proj = _invProject;
+    const SLOTS_COUNT = 4;
+    if (!proj) return null;
+
+    const totalDays = proj.duration_days || TYPE_DURATION_MAP[proj.type] || 7;
+    const expectedTotal = totalDays * SLOTS_COUNT;
+
+    let expectedToDate = 0;
+    let notStarted = false;
+    if (proj.start_date) {
+      const start = new Date(proj.start_date + 'T00:00:00');
+      const today = new Date(); today.setHours(0,0,0,0);
+      const msPerDay = 86400000;
+      const elapsedDays = Math.floor((today - start) / msPerDay) + 1; // jour de début inclus
+      if (elapsedDays <= 0) {
+        notStarted = true;
+      } else {
+        expectedToDate = Math.min(elapsedDays, totalDays) * SLOTS_COUNT;
+      }
+    } else {
+      // Pas de date de début définie : on ne peut pas calculer "à jour", on retombe sur le total
+      expectedToDate = expectedTotal;
+    }
+
+    return { totalDays, expectedTotal, expectedToDate, notStarted, startDate: proj.start_date };
+  }
+
   async function loadComplianceView() {
     var container = document.getElementById('inv-compliance-content');
     if (!container || !currentProject || _invPatients.length === 0) {
@@ -4520,60 +4552,112 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
     container.innerHTML = '<div class="loading-state"><div class="spinner"></div><div class="loading-text">Calcul…</div></div>';
 
     var { startStr, endStr } = _invGetPeriodRange();
-    // Nombre de jours dans la période
+    // Nombre de jours dans la période sélectionnée (5C)
     var msPerDay = 86400000;
     var nDays = Math.round((new Date(endStr + 'T12:00:00') - new Date(startStr + 'T12:00:00')) / msPerDay) + 1;
     // Repas attendus par jour : 4 créneaux (petit-dej, dejeuner, diner, collation)
     var SLOTS = ['petit-dej','dejeuner','diner','collation'];
     var expectedPerPatient = nDays * SLOTS.length;
 
-    // Charger tous les repas de la période pour ce projet
-    var { data: allMeals } = await sb.from('meals')
-      .select('patient_id, meal_type, skipped, meal_time')
-      .eq('project_id', currentProject)
-      .gte('meal_time', startStr + 'T00:00:00')
-      .lte('meal_time', endStr + 'T23:59:59');
+    // Bornes ancrées sur la durée réelle du protocole (indépendantes du sélecteur de période)
+    var proj = _invGetProjectAnchoredExpectations();
 
-    // Agréger par patient
-    var byPatient = {};
-    _invPatients.forEach(function(p) { byPatient[p.patient_id] = new Set(); });
-    (allMeals || []).forEach(function(m) {
-      if (!byPatient[m.patient_id]) return;
+    // Charger TOUS les repas du projet (pas seulement la période sélectionnée) —
+    // nécessaire pour calculer les métriques "total projet" et "à jour" sur toute l'historique.
+    var { data: allMealsEver } = await sb.from('meals')
+      .select('patient_id, meal_type, skipped, meal_time')
+      .eq('project_id', currentProject);
+
+    // Sous-ensemble limité à la période sélectionnée (pour la métrique "sur la période")
+    var allMeals = (allMealsEver || []).filter(function(m) {
       var day = m.meal_time ? m.meal_time.split('T')[0] : null;
-      if (!day) return;
-      // Un créneau est renseigné si le repas est enregistré (skipped inclus — signalement valide)
-      var slot = SLOTS.includes(m.meal_type) ? m.meal_type : null;
-      if (slot) byPatient[m.patient_id].add(day + '_' + slot);
+      return day && day >= startStr && day <= endStr;
     });
 
-    // Totaux projet
+    function aggregateBySlot(mealsList) {
+      var map = {};
+      _invPatients.forEach(function(p) { map[p.patient_id] = new Set(); });
+      mealsList.forEach(function(m) {
+        if (!map[m.patient_id]) return;
+        var day = m.meal_time ? m.meal_time.split('T')[0] : null;
+        if (!day) return;
+        var slot = SLOTS.includes(m.meal_type) ? m.meal_type : null;
+        if (slot) map[m.patient_id].add(day + '_' + slot);
+      });
+      return map;
+    }
+
+    var byPatientPeriode = aggregateBySlot(allMeals);
+    var byPatientTotal   = aggregateBySlot(allMealsEver || []);
+
+    // Totaux projet — vue "sur la période sélectionnée"
     var totalExpected = _invPatients.length * expectedPerPatient;
-    var totalFilled = _invPatients.reduce(function(s, p) { return s + byPatient[p.patient_id].size; }, 0);
+    var totalFilled = _invPatients.reduce(function(s, p) { return s + byPatientPeriode[p.patient_id].size; }, 0);
     var globalPct = totalExpected > 0 ? Math.round(totalFilled / totalExpected * 100) : 0;
-    var globalColor = globalPct >= 80 ? '#038141' : globalPct >= 50 ? '#E67E00' : '#E63E11';
+
+    // Totaux projet — vues ancrées sur le protocole (total + à jour)
+    var globalTotalFilled = _invPatients.reduce(function(s, p) { return s + byPatientTotal[p.patient_id].size; }, 0);
+    var globalExpectedTotal = proj ? _invPatients.length * proj.expectedTotal : 0;
+    var globalExpectedToDate = proj ? _invPatients.length * proj.expectedToDate : 0;
+    var globalPctTotal = globalExpectedTotal > 0 ? Math.round(globalTotalFilled / globalExpectedTotal * 100) : 0;
+    var globalPctToDate = globalExpectedToDate > 0 ? Math.round(globalTotalFilled / globalExpectedToDate * 100) : 0;
+
+    function pctColor(pct) { return pct >= 80 ? '#038141' : pct >= 50 ? '#E67E00' : '#E63E11'; }
 
     var patientsHtml = _invPatients.map(function(p) {
-      var filled = byPatient[p.patient_id].size;
-      var pct = expectedPerPatient > 0 ? Math.round(filled / expectedPerPatient * 100) : 0;
-      var color = pct >= 80 ? '#038141' : pct >= 50 ? '#E67E00' : '#E63E11';
-      var barW = Math.min(pct, 100);
+      var filledPeriode = byPatientPeriode[p.patient_id].size;
+      var pctPeriode = expectedPerPatient > 0 ? Math.round(filledPeriode / expectedPerPatient * 100) : 0;
+
+      var filledTotal = byPatientTotal[p.patient_id].size;
+      var pctTotal = proj && proj.expectedTotal > 0 ? Math.round(filledTotal / proj.expectedTotal * 100) : 0;
+      var pctToDate = proj && !proj.notStarted && proj.expectedToDate > 0
+        ? Math.round(filledTotal / proj.expectedToDate * 100) : null;
+
       var name = p.identifier || ((p.profiles?.prenom||'?') + ' ' + (p.profiles?.nom||''));
+      var barW = Math.min(pctPeriode, 100);
+
+      var toDateHtml = proj && proj.notStarted
+        ? '<div style="font-size:11px;color:var(--text-light)">À jour : pas encore démarré</div>'
+        : pctToDate !== null
+        ? '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px">' +
+            '<div style="font-size:11px;color:var(--text-light)">À jour (' + filledTotal + '/' + proj.expectedToDate + ')</div>' +
+            '<div style="font-size:13px;font-weight:700;color:' + pctColor(pctToDate) + '">' + pctToDate + '%</div>' +
+          '</div>'
+        : '';
+
+      var totalHtml = proj
+        ? '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:2px">' +
+            '<div style="font-size:11px;color:var(--text-light)">Total projet (' + filledTotal + '/' + proj.expectedTotal + ')</div>' +
+            '<div style="font-size:13px;font-weight:700;color:' + pctColor(pctTotal) + '">' + pctTotal + '%</div>' +
+          '</div>'
+        : '';
+
       return '<div class="card" style="padding:14px;margin-bottom:10px">' +
         '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">' +
         '<div style="font-weight:600;font-size:13px">' + name + '</div>' +
-        '<div style="font-weight:700;color:' + color + ';font-size:15px">' + pct + '%</div>' +
+        '<div style="font-weight:700;color:' + pctColor(pctPeriode) + ';font-size:15px">' + pctPeriode + '%</div>' +
         '</div>' +
         '<div style="background:var(--border);border-radius:4px;height:6px;margin-bottom:6px">' +
-        '<div style="background:' + color + ';width:' + barW + '%;height:6px;border-radius:4px;transition:width .3s"></div></div>' +
-        '<div style="font-size:11px;color:var(--text-light)">' + filled + ' / ' + expectedPerPatient + ' créneaux · ' + nDays + ' j × 4 créneaux</div>' +
+        '<div style="background:' + pctColor(pctPeriode) + ';width:' + barW + '%;height:6px;border-radius:4px;transition:width .3s"></div></div>' +
+        '<div style="font-size:11px;color:var(--text-light)">Période sélectionnée : ' + filledPeriode + ' / ' + expectedPerPatient + ' créneaux</div>' +
+        '<div class="divider" style="margin:8px 0"></div>' +
+        totalHtml +
+        toDateHtml +
         '</div>';
     }).join('');
 
     container.innerHTML =
       '<div class="card" style="padding:16px;margin-bottom:16px;background:var(--teal);color:white">' +
-      '<div style="font-size:12px;opacity:.8;margin-bottom:2px">Compliance globale du projet</div>' +
+      '<div style="font-size:12px;opacity:.8;margin-bottom:2px">Compliance — période sélectionnée</div>' +
       '<div style="font-size:28px;font-weight:800">' + globalPct + '%</div>' +
       '<div style="font-size:12px;opacity:.8">' + totalFilled + ' / ' + totalExpected + ' créneaux · ' + nDays + ' jour(s)</div>' +
+      (proj ? (
+      '<div class="divider" style="margin:12px 0;opacity:.3"></div>' +
+      '<div style="display:flex;gap:16px">' +
+        '<div style="flex:1"><div style="font-size:11px;opacity:.8">Total projet</div><div style="font-size:20px;font-weight:700">' + globalPctTotal + '%</div></div>' +
+        '<div style="flex:1"><div style="font-size:11px;opacity:.8">À jour</div><div style="font-size:20px;font-weight:700">' + globalPctToDate + '%</div></div>' +
+      '</div>'
+      ) : '') +
       '</div>' +
       '<div class="section-label">Par patient</div>' +
       patientsHtml;
