@@ -2144,7 +2144,7 @@
           <div class="settings-row-left">
             <div class="settings-icon">ℹ️</div>
             <div>
-              <div class="settings-label">NutriScanResearch v0.8.0</div>
+              <div class="settings-label">NutriScanResearch v0.8.1</div>
               <div class="settings-value">Prototype de recherche — CHU Poitiers</div>
             </div>
           </div>
@@ -2248,17 +2248,18 @@
       </div>
       <div class="form-group">
         <label class="form-label">Repas sauté</label>
-        <select class="form-input">
-          <option>Petit-déjeuner</option>
-          <option>Déjeuner</option>
-          <option>Dîner</option>
+        <select class="form-input" id="skip-meal-type">
+          <option value="petit-dej">Petit-déjeuner</option>
+          <option value="dejeuner">Déjeuner</option>
+          <option value="diner">Dîner</option>
+          <option value="collation">Collation</option>
         </select>
       </div>
       <div class="form-group">
         <label class="form-label">Raison (optionnel)</label>
-        <input type="text" class="form-input" placeholder="ex. Pas faim, nausées, oubli…" />
+        <input type="text" class="form-input" id="skip-meal-reason" placeholder="ex. Pas faim, nausées, oubli…" />
       </div>
-      <button class="btn btn-primary" onclick="closeModal('modal-skip')">Confirmer</button>
+      <button class="btn btn-primary" onclick="confirmSkipMeal()">Confirmer</button>
     </div>
   </div>
 
@@ -4125,7 +4126,37 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
   // =============================================
   // MODALS
   // =============================================
-  function showSkipModal() { document.getElementById('modal-skip').classList.add('active'); }
+  function showSkipModal() {
+    var t = document.getElementById('skip-meal-type'); if (t) t.value = 'petit-dej';
+    var r = document.getElementById('skip-meal-reason'); if (r) r.value = '';
+    document.getElementById('modal-skip').classList.add('active');
+  }
+
+  async function confirmSkipMeal() {
+    if (!currentProfile || !currentProject) {
+      showToast('Contexte manquant. Reconnectez-vous avant de signaler un repas.', 'error', 5000);
+      return;
+    }
+    var mealType = document.getElementById('skip-meal-type')?.value || 'autre';
+    var reason = document.getElementById('skip-meal-reason')?.value.trim() || null;
+    var day = selectedDay || new Date().toISOString().split('T')[0];
+    var today = new Date().toISOString().split('T')[0];
+    var mealTime = (day === today) ? new Date().toISOString() : day + 'T12:00:00';
+
+    const { error } = await sb.from('meals').insert({
+      patient_id: currentProfile.id,
+      project_id: currentProject,
+      meal_type: mealType,
+      skipped: true,
+      skip_reason: reason,
+      meal_time: mealTime
+    });
+
+    if (error) { showToast('Erreur : ' + error.message, 'error'); return; }
+    closeModal('modal-skip');
+    showToast('Repas sauté signalé ✓', 'success');
+    await loadPatientMeals(day);
+  }
   function showMealTypeModal() { document.getElementById('modal-meal-type').classList.add('active'); }
   function closeModal(id) { document.getElementById(id).classList.remove('active'); }
 
@@ -4979,7 +5010,7 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
         nutriscore: a.nutriscore || null, nova: a.nova || null, per100g: a.per100g
       };
     });
-    var updateData = { location: lieu, unusual: unusual, unusual_note: unusualNote };
+    var updateData = { location: lieu, unusual: unusual, unusual_note: unusualNote, edited_at: new Date().toISOString() };
     if (timeInput) {
       var base = selectedDay || new Date().toISOString().split('T')[0];
       updateData.meal_time = base + 'T' + timeInput + ':00';
@@ -5121,6 +5152,7 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
       if (m.skipped) return '<div class="inv-meal-item"><div class="inv-meal-item-top"><div class="meal-time-badge autre">⊘</div><div class="meal-info"><div class="meal-title">' + (mealLabels[m.meal_type]||'Repas') + ' sauté</div></div></div></div>';
       var kcal = (m.foods||[]).reduce(function(s,f){ return s + (f.per100g?.kcal ? Math.round(f.per100g.kcal*(f.quantite_g||100)/100) : 0); }, 0);
       var time = m.meal_time ? new Date(m.meal_time).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}) : '';
+      var editedBadge = m.edited_at ? '<span title="Modifié le ' + new Date(m.edited_at).toLocaleString('fr-FR') + '" style="font-size:10px;background:#FFF3CD;color:#8A6D00;padding:1px 6px;border-radius:8px;font-weight:700">✎ modifié</span>' : '';
       var foodsHtml = (m.foods||[]).map(function(f) {
         var qty = f.quantite_g||100;
         var p = f.per100g||{};
@@ -5132,7 +5164,7 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
         var novaBadge = f.nova ? '<span style="font-size:10px;background:#FFF3E0;color:' + (novaColors[f.nova]||'#555') + ';padding:1px 6px;border-radius:8px;font-weight:700">N' + f.nova + '</span>' : '';
         return '<div class="inv-food-row"><div style="display:flex;align-items:center;gap:6px;flex:1"><span style="font-size:18px">' + (f.emoji||'🍽️') + '</span><div><div style="font-weight:600;font-size:12px">' + f.nom + '</div><div style="font-size:11px;color:var(--text-light)">' + qty + 'g · ' + kcalF + ' kcal</div></div></div><div style="display:flex;gap:4px;align-items:center">' + nsBadge + novaBadge + '<div style="font-size:10px;color:var(--text-light);text-align:right">P ' + protF + 'g<br>L ' + lipF + 'g<br>G ' + glucF + 'g</div></div></div>';
       }).join('');
-      return '<div class="inv-meal-item"><div class="inv-meal-item-top" onclick="_toggleInvMeal(' + mi + ')"><div class="meal-time-badge ' + (mealClasses[m.meal_type]||'autre') + '">' + (mealIcons[m.meal_type]||'🕐') + '</div><div class="meal-info"><div class="meal-title">' + (mealLabels[m.meal_type]||'Repas') + '</div><div class="meal-sub">' + time + (m.location?' · '+m.location:'') + ' · ' + (m.foods?.length||0) + ' aliment(s)</div></div><div style="display:flex;align-items:center;gap:4px"><div class="meal-kcal">' + kcal + ' kcal</div><span id="inv-chev-' + mi + '" style="color:var(--text-light);font-size:16px">›</span></div></div><div class="inv-meal-foods" id="inv-foods-' + mi + '">' + foodsHtml + '</div></div>';
+      return '<div class="inv-meal-item"><div class="inv-meal-item-top" onclick="_toggleInvMeal(' + mi + ')"><div class="meal-time-badge ' + (mealClasses[m.meal_type]||'autre') + '">' + (mealIcons[m.meal_type]||'🕐') + '</div><div class="meal-info"><div class="meal-title">' + (mealLabels[m.meal_type]||'Repas') + ' ' + editedBadge + '</div><div class="meal-sub">' + time + (m.location?' · '+m.location:'') + ' · ' + (m.foods?.length||0) + ' aliment(s)</div></div><div style="display:flex;align-items:center;gap:4px"><div class="meal-kcal">' + kcal + ' kcal</div><span id="inv-chev-' + mi + '" style="color:var(--text-light);font-size:16px">›</span></div></div><div class="inv-meal-foods" id="inv-foods-' + mi + '">' + foodsHtml + '</div></div>';
     }).join('');
   }
 
