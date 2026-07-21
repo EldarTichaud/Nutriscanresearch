@@ -1579,6 +1579,15 @@
         <!-- Rempli dynamiquement -->
       </div>
       <button class="btn btn-secondary" onclick="openEditProjectConfig(currentProject)">Modifier la configuration</button>
+
+      <div class="divider"></div>
+      <div class="section-label" style="color:var(--red)">Zone de danger</div>
+
+      <button class="btn btn-secondary" style="margin-bottom:6px" onclick="confirmArchiveProject()">📦 Archiver ce projet</button>
+      <div style="font-size:12px;color:var(--text-light);margin-bottom:16px">Le projet disparaît de votre liste mais toutes les données (patients, repas, historique) restent conservées en base — réversible sur demande.</div>
+
+      <button class="btn btn-danger" onclick="openDeleteProjectModal()">🗑 Supprimer définitivement</button>
+      <div style="font-size:12px;color:var(--text-light);margin-top:6px">Efface irrémédiablement le projet et toutes les données associées. Action impossible à annuler.</div>
     </div>
 
     <!-- TAB: DONNÉES -->
@@ -2144,7 +2153,7 @@
           <div class="settings-row-left">
             <div class="settings-icon">ℹ️</div>
             <div>
-              <div class="settings-label">NutriScanResearch v0.8.1</div>
+              <div class="settings-label">NutriScanResearch v0.8.2</div>
               <div class="settings-value">Prototype de recherche — CHU Poitiers</div>
             </div>
           </div>
@@ -2234,6 +2243,24 @@
       <button class="btn btn-primary" onclick="saveMealEdit()" style="margin-bottom:8px">✓ Enregistrer les modifications</button>
       <button class="btn btn-secondary" onclick="cancelMealEdit()">Annuler</button>
       <div style="height:32px"></div>
+    </div>
+  </div>
+
+  <!-- ============ MODAL: SUPPRESSION DÉFINITIVE PROJET ============ -->
+  <div class="modal-overlay" id="modal-delete-project" onclick="closeModal('modal-delete-project')">
+    <div class="modal" onclick="event.stopPropagation()">
+      <div class="modal-handle"></div>
+      <div class="modal-title" style="color:var(--red)">Supprimer définitivement</div>
+      <div class="alert alert-danger">
+        <span class="alert-icon">⚠️</span>
+        <span>Cette action supprime le projet <strong id="del-project-name-display"></strong> et <strong>toutes</strong> les données associées (patients, repas, historique). Impossible à annuler.</span>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Tapez le nom exact du projet pour confirmer</label>
+        <input type="text" class="form-input" id="delete-project-confirm-input" oninput="_checkDeleteProjectInput()" autocomplete="off"/>
+      </div>
+      <button class="btn btn-danger" id="btn-confirm-delete-project" disabled onclick="executeDeleteProject()">Supprimer définitivement</button>
+      <button class="btn btn-secondary" style="margin-top:8px" onclick="closeModal('modal-delete-project')">Annuler</button>
     </div>
   </div>
 
@@ -2642,6 +2669,57 @@
         </div>
         <div class="project-card-meta">${typeLabels[p.type]||p.type} · ${p.project_patients?.[0]?.count||0} patient(s)</div>
       </div>`).join('');
+  }
+
+  // =============================================
+  // ARCHIVAGE / SUPPRESSION DÉFINITIVE D'UN PROJET
+  // =============================================
+  async function confirmArchiveProject() {
+    if (!currentProject) return;
+    if (!confirm('Archiver "' + currentProjectName + '" ?\n\nLe projet disparaîtra de votre liste mais toutes les données (patients, repas, historique) resteront conservées en base. Réversible sur demande.')) return;
+    const { error } = await sb.from('projects').update({ active: false }).eq('id', currentProject);
+    if (error) { showToast('Erreur : ' + error.message, 'error'); return; }
+    showToast('Projet archivé ✓', 'success');
+    currentProject = null;
+    goTo('screen-home');
+    await loadProjects();
+  }
+
+  var _deleteProjectTargetId = null;
+  var _deleteProjectTargetName = '';
+
+  function openDeleteProjectModal() {
+    if (!currentProject) return;
+    _deleteProjectTargetId = currentProject;
+    _deleteProjectTargetName = currentProjectName || '';
+    document.getElementById('del-project-name-display').textContent = _deleteProjectTargetName;
+    var input = document.getElementById('delete-project-confirm-input');
+    input.value = '';
+    input.placeholder = _deleteProjectTargetName;
+    document.getElementById('btn-confirm-delete-project').disabled = true;
+    document.getElementById('modal-delete-project').classList.add('active');
+  }
+
+  function _checkDeleteProjectInput() {
+    var val = document.getElementById('delete-project-confirm-input').value.trim();
+    document.getElementById('btn-confirm-delete-project').disabled = (val !== _deleteProjectTargetName);
+  }
+
+  async function executeDeleteProject() {
+    if (!_deleteProjectTargetId) return;
+    var btn = document.getElementById('btn-confirm-delete-project');
+    btn.disabled = true; btn.textContent = 'Suppression…';
+    const { error } = await sb.rpc('delete_project_permanently', { p_project_id: _deleteProjectTargetId });
+    if (error) {
+      showToast('Erreur : ' + error.message, 'error');
+      btn.disabled = false; btn.textContent = 'Supprimer définitivement';
+      return;
+    }
+    closeModal('modal-delete-project');
+    showToast('Projet supprimé définitivement', 'success');
+    currentProject = null;
+    goTo('screen-home');
+    await loadProjects();
   }
 
   // =============================================
