@@ -2153,7 +2153,7 @@
           <div class="settings-row-left">
             <div class="settings-icon">ℹ️</div>
             <div>
-              <div class="settings-label">NutriScanResearch v0.8.2</div>
+              <div class="settings-label">NutriScanResearch v0.8.4</div>
               <div class="settings-value">Prototype de recherche — CHU Poitiers</div>
             </div>
           </div>
@@ -2448,7 +2448,8 @@
             .select('name, config').eq('id', pp.project_id).maybeSingle();
           if (proj) {
             document.getElementById('patient-project-tag').textContent = 'PROJET ' + (proj.name || '').toUpperCase();
-            if (proj.config?.showBilan) document.getElementById('patient-bilan').style.display = 'block';
+            currentShowBilan = !!proj.config?.showBilan;
+            if (currentShowBilan) document.getElementById('patient-bilan').style.display = 'block';
             if (proj.config?.contact_email) {
               currentContactEmail = proj.config.contact_email;
               document.getElementById('nav-contact-btn').style.display = 'flex';
@@ -2647,6 +2648,7 @@
   // PROJETS
   // =============================================
   let currentProject = null;
+  let currentShowBilan = false;
 
   async function loadProjects() {
     const { data: projects } = await sb.from('projects')
@@ -3349,17 +3351,27 @@
           </div>
         </div>`;
 
-      const kcal = m.foods?.reduce((s, f) => {
-        const v = f.per100g?.kcal ? Math.round(f.per100g.kcal * (f.quantite_g||100) / 100) : 0;
-        totalKcal += v; return s + v;
-      }, 0) || 0;
+      let mKcal = 0, mProt = 0, mLip = 0, mGluc = 0;
       m.foods?.forEach(f => {
-        totalProt += f.per100g?.prot ? Math.round(f.per100g.prot * (f.quantite_g||100) / 100 * 10) / 10 : 0;
-        totalLip += f.per100g?.lip ? Math.round(f.per100g.lip * (f.quantite_g||100) / 100 * 10) / 10 : 0;
-        totalGluc += f.per100g?.gluc ? Math.round(f.per100g.gluc * (f.quantite_g||100) / 100 * 10) / 10 : 0;
+        const q = f.quantite_g || 100;
+        mKcal += f.per100g?.kcal ? Math.round(f.per100g.kcal * q / 100) : 0;
+        mProt += f.per100g?.prot ? f.per100g.prot * q / 100 : 0;
+        mLip  += f.per100g?.lip  ? f.per100g.lip  * q / 100 : 0;
+        mGluc += f.per100g?.gluc ? f.per100g.gluc * q / 100 : 0;
       });
+      totalKcal += mKcal;
+      totalProt += Math.round(mProt * 10) / 10;
+      totalLip  += Math.round(mLip  * 10) / 10;
+      totalGluc += Math.round(mGluc * 10) / 10;
+      const kcal = mKcal;
       const time = m.meal_time ? new Date(m.meal_time).toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit'}) : '';
       const foodsPreview = m.foods?.slice(0,3).map(f => f.emoji||'🍽').join(' ') || '';
+      const macrosBlock = currentShowBilan
+        ? `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
+             <div class="meal-kcal">${kcal} kcal</div>
+             <div style="font-size:10px;color:var(--text-light);white-space:nowrap">P ${Math.round(mProt)}g · L ${Math.round(mLip)}g · G ${Math.round(mGluc)}g</div>
+           </div>`
+        : '';
       return `
         <div class="meal-item" onclick="openMealView('${m.id}')">
           <div class="meal-time-badge ${mealClasses[m.meal_type]||'autre'}">${mealIcons[m.meal_type]||'🕐'}</div>
@@ -3368,7 +3380,7 @@
             <div class="meal-sub">${time}${m.location?' · '+m.location:''} ${foodsPreview}</div>
           </div>
           <div style="display:flex;align-items:center;gap:4px">
-            <div class="meal-kcal">${kcal} kcal</div>
+            ${macrosBlock}
             <span style="color:var(--text-light);font-size:16px">›</span>
           </div>
         </div>`;
@@ -4506,25 +4518,28 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
       totals.sel    += (p.sel||0)*qty/100;
       var nsBadge = isAlcoholicBeverage(f.nom) ? '<span title="Non applicable : boisson alcoolisée" style="font-size:10px;background:#e8e8e4;color:#888;padding:1px 6px;border-radius:8px;font-weight:700">N/A</span>' : f.nutriscore ? '<span style="font-size:10px;background:'+(nsColors[f.nutriscore]||'#aaa')+';color:white;padding:1px 6px;border-radius:8px;font-weight:700">'+f.nutriscore+'</span>' : '';
       var novaBadge = f.nova ? '<span style="font-size:10px;background:#FFF3E0;color:'+(novaColors[f.nova]||'#555')+';padding:1px 6px;border-radius:8px;font-weight:700">N'+f.nova+'</span>' : '';
-      return '<div class="meal-item" style="cursor:default"><div style="font-size:22px;margin-right:10px">'+(f.emoji||'🍽️')+'</div><div class="meal-info"><div class="meal-title" style="font-size:14px">'+f.nom+'</div><div class="meal-sub">'+qty+' g · '+kcalF+' kcal'+(f.source?' · '+f.source:'')+'</div></div><div style="display:flex;gap:4px;align-items:center">'+nsBadge+novaBadge+'</div></div>';
+      return '<div class="meal-item" style="cursor:default"><div style="font-size:22px;margin-right:10px">'+(f.emoji||'🍽️')+'</div><div class="meal-info"><div class="meal-title" style="font-size:14px">'+f.nom+'</div><div class="meal-sub">'+qty+' g'+(currentShowBilan?' · '+kcalF+' kcal':'')+(f.source?' · '+f.source:'')+'</div></div><div style="display:flex;gap:4px;align-items:center">'+nsBadge+novaBadge+'</div></div>';
     }).join('');
     document.getElementById('view-foods-container').innerHTML =
       foodsHtml || '<div class="empty-state"><p>Aucun aliment enregistré.</p></div>';
 
     var r1 = function(v){ return Math.round(v*10)/10; };
     document.getElementById('view-meal-macros').innerHTML =
-      '<div class="macro-item"><div class="macro-value">'+totals.kcal+'</div><div class="macro-sub">kcal</div><div class="macro-label">Énergie</div></div>' +
-      '<div class="macro-item"><div class="macro-value">'+r1(totals.prot)+'g</div><div class="macro-label">Protéines</div></div>' +
-      '<div class="macro-item"><div class="macro-value">'+r1(totals.lip)+'g</div><div class="macro-label">Lipides</div></div>' +
-      '<div class="macro-item"><div class="macro-value">'+r1(totals.gluc)+'g</div><div class="macro-label">Glucides</div></div>';
+    document.getElementById('view-meal-macros').innerHTML = currentShowBilan
+      ? '<div class="macro-item"><div class="macro-value">'+totals.kcal+'</div><div class="macro-sub">kcal</div><div class="macro-label">Énergie</div></div>' +
+        '<div class="macro-item"><div class="macro-value">'+r1(totals.prot)+'g</div><div class="macro-label">Protéines</div></div>' +
+        '<div class="macro-item"><div class="macro-value">'+r1(totals.lip)+'g</div><div class="macro-label">Lipides</div></div>' +
+        '<div class="macro-item"><div class="macro-value">'+r1(totals.gluc)+'g</div><div class="macro-label">Glucides</div></div>'
+      : '';
 
-    document.getElementById('view-meal-detail-table').innerHTML =
-      '<table class="nutrient-table"><tbody>' +
-      '<tr><td>dont sucres</td><td style="text-align:right">'+r1(totals.sucres)+' g</td></tr>' +
-      '<tr><td>dont AG saturés</td><td style="text-align:right">'+r1(totals.ag_sat)+' g</td></tr>' +
-      '<tr><td>Fibres</td><td style="text-align:right">'+r1(totals.fibres)+' g</td></tr>' +
-      '<tr><td>Sel</td><td style="text-align:right">'+(Math.round(totals.sel*100)/100)+' g</td></tr>' +
-      '</tbody></table>';
+    document.getElementById('view-meal-detail-table').innerHTML = currentShowBilan
+      ? '<table class="nutrient-table"><tbody>' +
+        '<tr><td>dont sucres</td><td style="text-align:right">'+r1(totals.sucres)+' g</td></tr>' +
+        '<tr><td>dont AG saturés</td><td style="text-align:right">'+r1(totals.ag_sat)+' g</td></tr>' +
+        '<tr><td>Fibres</td><td style="text-align:right">'+r1(totals.fibres)+' g</td></tr>' +
+        '<tr><td>Sel</td><td style="text-align:right">'+(Math.round(totals.sel*100)/100)+' g</td></tr>' +
+        '</tbody></table>'
+      : '';
 
     goTo('screen-meal-view');
   }
