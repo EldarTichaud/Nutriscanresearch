@@ -2153,7 +2153,7 @@
           <div class="settings-row-left">
             <div class="settings-icon">ℹ️</div>
             <div>
-              <div class="settings-label">NutriScanResearch v0.8.5</div>
+              <div class="settings-label">NutriScanResearch v0.8.6</div>
               <div class="settings-value">Prototype de recherche — CHU Poitiers</div>
             </div>
           </div>
@@ -2195,8 +2195,25 @@
       </div>
       <div id="view-meal-detail-table" style="margin-top:12px"></div>
 
+      <button class="btn btn-secondary" id="view-meal-nutrient-detail-btn" style="margin-bottom:8px" onclick="openNutrientDetail()">🔬 Détail par nutriment</button>
       <button class="btn btn-primary" id="view-meal-edit-btn" style="margin-top:20px;margin-bottom:8px" onclick="openMealEdit(currentViewMealId)">✏️ Modifier ce repas</button>
       <button class="btn btn-secondary" onclick="goTo('screen-patient-home')">Retour</button>
+      <div style="height:32px"></div>
+    </div>
+  </div>
+
+  <!-- ============ SCREEN: DÉTAIL PAR NUTRIMENT (par aliment) ============ -->
+  <div class="screen" id="screen-nutrient-detail">
+    <div class="header">
+      <div class="header-row">
+        <div class="back-btn" onclick="goTo('screen-meal-view')">←</div>
+        <h2>Détail par nutriment</h2>
+      </div>
+      <p>Apports pour chaque aliment du repas, sur les nutriments suivis dans cette étude</p>
+    </div>
+    <div class="content">
+      <div id="nutrient-detail-content"></div>
+      <button class="btn btn-secondary" style="margin-top:12px" onclick="goTo('screen-meal-view')">Retour</button>
       <div style="height:32px"></div>
     </div>
   </div>
@@ -2438,9 +2455,15 @@
       } else {
         // Charger le projet du patient (deux requêtes séquentielles :
         // la jointure imbriquée projects(...) échoue silencieusement → project_id NULL sur les repas)
-        const { data: pp } = await sb.from('project_patients')
+        // .limit(1) + tri décroissant plutôt que .maybeSingle() : un compte lié par erreur
+        // à plusieurs projets ne doit pas faire échouer silencieusement toute la récupération
+        // (maybeSingle() renvoie une erreur -> data null si >1 ligne).
+        const { data: ppList } = await sb.from('project_patients')
           .select('project_id')
-          .eq('patient_id', currentProfile.id).maybeSingle();
+          .eq('patient_id', currentProfile.id)
+          .order('joined_at', { ascending: false })
+          .limit(1);
+        const pp = ppList && ppList[0];
         if (pp && pp.project_id) {
           currentProject = pp.project_id;
           // Détails du projet via une requête séparée
@@ -2449,6 +2472,7 @@
           if (proj) {
             document.getElementById('patient-project-tag').textContent = 'PROJET ' + (proj.name || '').toUpperCase();
             currentShowBilan = !!proj.config?.showBilan;
+            currentTrackedNutrients = Array.isArray(proj.config?.nutrients) ? proj.config.nutrients : [];
             if (currentShowBilan) document.getElementById('patient-bilan').style.display = 'block';
             if (proj.config?.contact_email) {
               currentContactEmail = proj.config.contact_email;
@@ -2649,6 +2673,7 @@
   // =============================================
   let currentProject = null;
   let currentShowBilan = false;
+  let currentTrackedNutrients = [];
 
   async function loadProjects() {
     const { data: projects } = await sb.from('projects')
@@ -4499,10 +4524,12 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
       document.getElementById('view-meal-macros').innerHTML = '';
       document.getElementById('view-meal-detail-table').innerHTML = '';
       document.getElementById('view-meal-edit-btn').style.display = 'none';
+      document.getElementById('view-meal-nutrient-detail-btn').style.display = 'none';
       goTo('screen-meal-view');
       return;
     }
     document.getElementById('view-meal-edit-btn').style.display = 'block';
+    document.getElementById('view-meal-nutrient-detail-btn').style.display = currentShowBilan ? 'block' : 'none';
 
     var totals = { kcal:0, prot:0, lip:0, gluc:0, sucres:0, fibres:0, ag_sat:0, sel:0 };
     var foodsHtml = (meal.foods || []).map(function(f) {
@@ -4543,6 +4570,59 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
       : '';
 
     goTo('screen-meal-view');
+  }
+
+  // =============================================
+  // DÉTAIL PAR NUTRIMENT (par aliment) — utilise les "Nutriments suivis"
+  // configurés pour le projet (config.nutrients), cohérent avec l'écran
+  // de configuration investigateur (NUTRIENT_GROUPS)
+  // =============================================
+  async function openNutrientDetail() {
+    if (!currentViewMealId) return;
+    const { data: meal } = await sb.from('meals').select('meal_type, foods(*)').eq('id', currentViewMealId).single();
+    if (!meal) { showToast('Repas introuvable', 'error'); return; }
+
+    const allNutrients = NUTRIENT_GROUPS.flatMap(function(g) { return g.nutrients; });
+    const nutrientLookup = {};
+    allNutrients.forEach(function(n) { nutrientLookup[n.id] = n; });
+
+    const trackedIds = (currentTrackedNutrients && currentTrackedNutrients.length)
+      ? currentTrackedNutrients
+      : allNutrients.filter(function(n) { return n.standard; }).map(function(n) { return n.id; });
+
+    const container = document.getElementById('nutrient-detail-content');
+    if (!container) return;
+
+    if (!meal.foods || meal.foods.length === 0) {
+      container.innerHTML = '<div class="empty-state"><p>Aucun aliment enregistré.</p></div>';
+      goTo('screen-nutrient-detail');
+      return;
+    }
+
+    container.innerHTML = meal.foods.map(function(f) {
+      var qty = f.quantite_g || 100;
+      var p = f.per100g || {};
+      var rows = trackedIds.map(function(nid) {
+        var def = nutrientLookup[nid];
+        if (!def) return '';
+        var raw = p[nid];
+        if (raw === undefined || raw === null) return '';
+        var val = def.id === 'kcal' ? Math.round(raw * qty / 100) : Math.round(raw * qty / 100 * 100) / 100;
+        return '<tr><td>' + def.label + '</td><td style="text-align:right">' + val + ' ' + def.unit + '</td></tr>';
+      }).join('');
+      return '<div class="card" style="padding:14px;margin-bottom:14px">' +
+        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">' +
+        '<div style="font-size:20px">' + (f.emoji||'🍽️') + '</div>' +
+        '<div style="font-weight:600">' + f.nom + '</div>' +
+        '<div style="margin-left:auto;font-size:12px;color:var(--text-light)">' + qty + ' g</div>' +
+        '</div>' +
+        '<table class="nutrient-table"><tbody>' +
+        (rows || '<tr><td colspan="2" style="color:var(--text-light)">Données non disponibles</td></tr>') +
+        '</tbody></table>' +
+        '</div>';
+    }).join('');
+
+    goTo('screen-nutrient-detail');
   }
 
   // =============================================
