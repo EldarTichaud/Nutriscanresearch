@@ -1,4 +1,4 @@
-const CACHE = 'nsr-v086';
+const CACHE = 'nsr-v087';
 const ASSETS = ['/', '/index.html', '/manifest.json', '/icon-192.png', '/icon-512.png'];
 
 self.addEventListener('install', e => {
@@ -14,10 +14,25 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
-  if (e.request.method !== 'GET') return;
+  const url = new URL(e.request.url);
+
+  // Ne jamais intercepter les requêtes cross-origin (Supabase, API tierces) :
+  // tenter de cacher/cloner leur réponse pouvait planter ("Response body is
+  // already used") et faisait retomber sur le cache au lieu de la vraie
+  // réponse réseau — cassant silencieusement des appels Supabase (ex: le
+  // chargement du projet du patient). Seuls les fichiers de l'app (même
+  // origine) sont mis en cache.
+  if (e.request.method !== 'GET' || url.origin !== self.location.origin) {
+    return;
+  }
+
   e.respondWith(
     fetch(e.request)
-      .then(r => { caches.open(CACHE).then(c => c.put(e.request, r.clone())); return r; })
+      .then(r => {
+        const copy = r.clone();
+        caches.open(CACHE).then(c => c.put(e.request, copy));
+        return r;
+      })
       .catch(() => caches.match(e.request))
   );
 });
