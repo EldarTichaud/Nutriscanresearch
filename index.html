@@ -1566,7 +1566,7 @@
       <div class="form-group">
         <div style="display:flex;align-items:center;justify-content:space-between">
           <label class="form-label" style="margin:0">Afficher le bilan au patient</label>
-          <div class="toggle" id="toggle-show-bilan" onclick="toggleSwitch('toggle-show-bilan')"></div>
+          <div class="toggle" id="toggle-show-bilan-summary"></div>
         </div>
         <div style="font-size:12px;color:var(--text-light);margin-top:6px">Si désactivé, le patient ne voit pas ses valeurs nutritionnelles — recommandé pour éviter les biais comportementaux.</div>
       </div>
@@ -2153,7 +2153,7 @@
           <div class="settings-row-left">
             <div class="settings-icon">ℹ️</div>
             <div>
-              <div class="settings-label">NutriScanResearch v0.8.4</div>
+              <div class="settings-label">NutriScanResearch v0.8.5</div>
               <div class="settings-value">Prototype de recherche — CHU Poitiers</div>
             </div>
           </div>
@@ -2944,6 +2944,7 @@
     document.getElementById('project-detail-name').textContent = projectName;
     const { data: proj } = await sb.from('projects').select('type, config').eq('id', projectId).single();
     const { count } = await sb.from('project_patients').select('*', { count: 'exact', head: true }).eq('project_id', projectId);
+    document.getElementById('toggle-show-bilan-summary')?.classList.toggle('on', !!proj?.config?.showBilan);
     const typeLabels = { '24h':'R24H', '72h':'R72H', '5j':'5 jours', '7j':'7 jours', 'custom':'Personnalisé' };
     document.getElementById('project-detail-meta').textContent =
       (typeLabels[proj?.type] || proj?.type || '') + ' · ' + (count || 0) + ' patient(s)';
