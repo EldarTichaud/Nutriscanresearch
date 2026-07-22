@@ -2163,10 +2163,20 @@
           <div class="settings-row-left">
             <div class="settings-icon">ℹ️</div>
             <div>
-              <div class="settings-label">NutriScanResearch v0.8.9</div>
+              <div class="settings-label">NutriScanResearch v0.9.0</div>
               <div class="settings-value">Prototype de recherche — CHU Poitiers</div>
             </div>
           </div>
+        </div>
+        <div class="settings-row" onclick="openChangelog()" style="cursor:pointer">
+          <div class="settings-row-left">
+            <div class="settings-icon">🕓</div>
+            <div>
+              <div class="settings-label">Historique des mises à jour</div>
+              <div class="settings-value">Voir le journal des versions</div>
+            </div>
+          </div>
+          <span style="color:var(--text-light)">›</span>
         </div>
       </div>
 
@@ -2304,6 +2314,16 @@
       </div>
       <button class="btn btn-danger" id="btn-confirm-delete-project" disabled onclick="executeDeleteProject()">Supprimer définitivement</button>
       <button class="btn btn-secondary" style="margin-top:8px" onclick="closeModal('modal-delete-project')">Annuler</button>
+    </div>
+  </div>
+
+  <!-- ============ MODAL: HISTORIQUE DES MISES À JOUR ============ -->
+  <div class="modal-overlay" id="modal-changelog" onclick="closeModal('modal-changelog')">
+    <div class="modal" onclick="event.stopPropagation()" style="max-height:80vh;display:flex;flex-direction:column">
+      <div class="modal-handle"></div>
+      <div class="modal-title">Historique des mises à jour</div>
+      <div id="changelog-content" style="overflow-y:auto;flex:1"></div>
+      <button class="btn btn-secondary" style="margin-top:12px" onclick="closeModal('modal-changelog')">Fermer</button>
     </div>
   </div>
 
@@ -3581,6 +3601,75 @@
   // =============================================
   // DÉFINITION DES NUTRIMENTS (CIQUAL 2025 + USDA)
   // =============================================
+  // =============================================
+  // HISTORIQUE DES MISES À JOUR
+  // À compléter à chaque nouvelle version (entrée la plus récente en premier)
+  // =============================================
+  const CHANGELOG = [
+    { version: '0.9.0', changes: [
+      'Ajout de l\'historique des mises à jour, accessible depuis Paramètres'
+    ]},
+    { version: '0.8.9', changes: [
+      'Barre de navigation ajoutée sur l\'écran de détail d\'un repas, le détail par nutriment et l\'écran projet investigateur',
+      'Protéines/lipides/glucides affichés par aliment dans le détail d\'un repas'
+    ]},
+    { version: '0.8.8', changes: [
+      'Barre de navigation recentrée pour tenir sur tous les écrans',
+      'Correction du lien "Mon recueil" qui ne ramenait pas à l\'accueil'
+    ]},
+    { version: '0.8.7', changes: [
+      'Correction d\'un bug du service worker qui pouvait interrompre silencieusement des appels à Supabase'
+    ]},
+    { version: '0.8.6', changes: [
+      'Correction du chargement du projet patient en cas de compte lié à plusieurs projets',
+      'Nouveau bouton "Détail par nutriment" sur l\'écran de résumé d\'un repas'
+    ]},
+    { version: '0.8.5', changes: [
+      'Correction du réglage "Afficher le bilan au patient" qui restait bloqué à la création d\'un projet'
+    ]},
+    { version: '0.8.4', changes: [
+      'Le réglage "Afficher le bilan au patient" masque désormais l\'ensemble des valeurs nutritionnelles côté patient (liste des repas, détail d\'un repas)'
+    ]},
+    { version: '0.8.3', changes: [
+      'Protéines/lipides/glucides affichés pour chaque repas dans la liste, sans avoir à l\'ouvrir'
+    ]},
+    { version: '0.8.2', changes: [
+      'Nouvelle option pour archiver ou supprimer définitivement un projet (investigateur)'
+    ]},
+    { version: '0.8.1', changes: [
+      'Le signalement d\'un repas sauté fonctionne enfin de bout en bout (patient)',
+      'Les repas modifiés sont désormais signalés par un badge "modifié" côté investigateur'
+    ]},
+    { version: '0.8.0', changes: [
+      'Nouvelle vue "Répartition" (Nutri-Score et NOVA) dans l\'onglet Données'
+    ]},
+    { version: '0.7.9', changes: [
+      'Indicateur de compliance enrichi (période sélectionnée / durée totale du projet / à jour)'
+    ]},
+    { version: '0.7.8', changes: [
+      'Le Nutri-Score des boissons alcoolisées est désormais marqué "N/A" au lieu d\'un score erroné'
+    ]},
+    { version: '0.7.7', changes: [
+      'Correction d\'une erreur d\'analyse liée à un délai serveur trop court'
+    ]},
+    { version: '0.7.6', changes: [
+      'La modification de la configuration d\'un projet édite le projet existant au lieu d\'en créer un nouveau'
+    ]},
+  ];
+
+  function openChangelog() {
+    const container = document.getElementById('changelog-content');
+    container.innerHTML = CHANGELOG.map(entry =>
+      '<div style="margin-bottom:16px">' +
+        '<div style="font-weight:700;color:var(--teal);margin-bottom:4px">v' + entry.version + '</div>' +
+        '<ul style="margin:0;padding-left:18px;font-size:13px;color:var(--text-mid)">' +
+          entry.changes.map(c => '<li style="margin-bottom:3px">' + c + '</li>').join('') +
+        '</ul>' +
+      '</div>'
+    ).join('');
+    document.getElementById('modal-changelog').classList.add('active');
+  }
+
   const NUTRIENT_GROUPS = [
     { id: 'energie', label: 'Énergie', nutrients: [
       { id: 'kcal', label: 'Énergie (kcal)', unit: 'kcal', standard: true },
