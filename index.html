@@ -1536,7 +1536,7 @@
       <div class="nav-item active" onclick="goTo('screen-patient-home')"><div class="nav-icon">🥗</div>Mon recueil</div>
       <div class="nav-item" onclick="openPatientProfile()"><div class="nav-icon">👤</div>Profil</div>
       <div class="nav-item" onclick="goTo('screen-settings');loadSettingsNotifications()"><div class="nav-icon">⚙️</div>Paramètres</div>
-      <div class="nav-item" id="nav-contact-btn" onclick="showContactInfo()" style="display:none"><div class="nav-icon">✉️</div>Contact</div>
+      <div class="nav-item nav-contact-btn" onclick="showContactInfo()" style="display:none"><div class="nav-icon">✉️</div>Contact</div>
       <div class="nav-item" onclick="logout()"><div class="nav-icon">🚪</div>Déconnexion</div>
       <div class="nav-item" onclick="deleteAccount()" style="color:#e53e3e"><div class="nav-icon">🗑️</div>Supprimer</div>
     </div>
@@ -1664,6 +1664,12 @@
         <div id="inv-tableau-content" style="overflow-x:auto"><div class="empty-state"><div class="empty-icon">📊</div><p>Sélectionnez un patient.</p></div></div>
         <button class="btn btn-secondary" style="margin-top:16px" onclick="exportCSV()">📤 Exporter CSV</button>
       </div>
+    </div>
+    <div class="bottom-nav">
+      <div class="nav-item" onclick="goTo('screen-home')"><div class="nav-icon">🏠</div>Accueil</div>
+      <div class="nav-item" onclick="goTo('screen-settings');loadSettingsApiKey();loadSettingsNotifications()"><div class="nav-icon">⚙️</div>Paramètres</div>
+      <div class="nav-item" onclick="logout()"><div class="nav-icon">🚪</div>Déconnexion</div>
+      <div class="nav-item" onclick="deleteAccount()" style="color:#e53e3e"><div class="nav-icon">🗑️</div>Supprimer</div>
     </div>
   </div>
 
@@ -2157,7 +2163,7 @@
           <div class="settings-row-left">
             <div class="settings-icon">ℹ️</div>
             <div>
-              <div class="settings-label">NutriScanResearch v0.8.8</div>
+              <div class="settings-label">NutriScanResearch v0.8.9</div>
               <div class="settings-value">Prototype de recherche — CHU Poitiers</div>
             </div>
           </div>
@@ -2204,6 +2210,14 @@
       <button class="btn btn-secondary" onclick="goTo('screen-patient-home')">Retour</button>
       <div style="height:32px"></div>
     </div>
+    <div class="bottom-nav">
+      <div class="nav-item" onclick="goTo('screen-patient-home')"><div class="nav-icon">🥗</div>Mon recueil</div>
+      <div class="nav-item" onclick="openPatientProfile()"><div class="nav-icon">👤</div>Profil</div>
+      <div class="nav-item" onclick="goTo('screen-settings');loadSettingsNotifications()"><div class="nav-icon">⚙️</div>Paramètres</div>
+      <div class="nav-item nav-contact-btn" onclick="showContactInfo()" style="display:none"><div class="nav-icon">✉️</div>Contact</div>
+      <div class="nav-item" onclick="logout()"><div class="nav-icon">🚪</div>Déconnexion</div>
+      <div class="nav-item" onclick="deleteAccount()" style="color:#e53e3e"><div class="nav-icon">🗑️</div>Supprimer</div>
+    </div>
   </div>
 
   <!-- ============ SCREEN: DÉTAIL PAR NUTRIMENT (par aliment) ============ -->
@@ -2219,6 +2233,14 @@
       <div id="nutrient-detail-content"></div>
       <button class="btn btn-secondary" style="margin-top:12px" onclick="goTo('screen-meal-view')">Retour</button>
       <div style="height:32px"></div>
+    </div>
+    <div class="bottom-nav">
+      <div class="nav-item" onclick="goTo('screen-patient-home')"><div class="nav-icon">🥗</div>Mon recueil</div>
+      <div class="nav-item" onclick="openPatientProfile()"><div class="nav-icon">👤</div>Profil</div>
+      <div class="nav-item" onclick="goTo('screen-settings');loadSettingsNotifications()"><div class="nav-icon">⚙️</div>Paramètres</div>
+      <div class="nav-item nav-contact-btn" onclick="showContactInfo()" style="display:none"><div class="nav-icon">✉️</div>Contact</div>
+      <div class="nav-item" onclick="logout()"><div class="nav-icon">🚪</div>Déconnexion</div>
+      <div class="nav-item" onclick="deleteAccount()" style="color:#e53e3e"><div class="nav-icon">🗑️</div>Supprimer</div>
     </div>
   </div>
 
@@ -2480,7 +2502,7 @@
             if (currentShowBilan) document.getElementById('patient-bilan').style.display = 'block';
             if (proj.config?.contact_email) {
               currentContactEmail = proj.config.contact_email;
-              document.getElementById('nav-contact-btn').style.display = 'flex';
+              document.querySelectorAll('.nav-contact-btn').forEach(el => el.style.display = 'flex');
             }
           }
         }
@@ -4540,6 +4562,9 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
       var qty = f.quantite_g || 100;
       var p = f.per100g || {};
       var kcalF = p.kcal ? Math.round(p.kcal*qty/100) : 0;
+      var protF = Math.round((p.prot||0)*qty/100*10)/10;
+      var lipF  = Math.round((p.lip||0)*qty/100*10)/10;
+      var glucF = Math.round((p.gluc||0)*qty/100*10)/10;
       totals.kcal   += kcalF;
       totals.prot   += (p.prot||0)*qty/100;
       totals.lip    += (p.lip||0)*qty/100;
@@ -4550,7 +4575,10 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
       totals.sel    += (p.sel||0)*qty/100;
       var nsBadge = isAlcoholicBeverage(f.nom) ? '<span title="Non applicable : boisson alcoolisée" style="font-size:10px;background:#e8e8e4;color:#888;padding:1px 6px;border-radius:8px;font-weight:700">N/A</span>' : f.nutriscore ? '<span style="font-size:10px;background:'+(nsColors[f.nutriscore]||'#aaa')+';color:white;padding:1px 6px;border-radius:8px;font-weight:700">'+f.nutriscore+'</span>' : '';
       var novaBadge = f.nova ? '<span style="font-size:10px;background:#FFF3E0;color:'+(novaColors[f.nova]||'#555')+';padding:1px 6px;border-radius:8px;font-weight:700">N'+f.nova+'</span>' : '';
-      return '<div class="meal-item" style="cursor:default"><div style="font-size:22px;margin-right:10px">'+(f.emoji||'🍽️')+'</div><div class="meal-info"><div class="meal-title" style="font-size:14px">'+f.nom+'</div><div class="meal-sub">'+qty+' g'+(currentShowBilan?' · '+kcalF+' kcal':'')+(f.source?' · '+f.source:'')+'</div></div><div style="display:flex;gap:4px;align-items:center">'+nsBadge+novaBadge+'</div></div>';
+      var macroDetail = currentShowBilan
+        ? '<div style="font-size:10px;color:var(--text-light);text-align:right;white-space:nowrap">P '+protF+'g · L '+lipF+'g · G '+glucF+'g</div>'
+        : '';
+      return '<div class="meal-item" style="cursor:default"><div style="font-size:22px;margin-right:10px">'+(f.emoji||'🍽️')+'</div><div class="meal-info"><div class="meal-title" style="font-size:14px">'+f.nom+'</div><div class="meal-sub">'+qty+' g'+(currentShowBilan?' · '+kcalF+' kcal':'')+(f.source?' · '+f.source:'')+'</div>'+macroDetail+'</div><div style="display:flex;gap:4px;align-items:center">'+nsBadge+novaBadge+'</div></div>';
     }).join('');
     document.getElementById('view-foods-container').innerHTML =
       foodsHtml || '<div class="empty-state"><p>Aucun aliment enregistré.</p></div>';
