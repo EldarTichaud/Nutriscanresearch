@@ -112,24 +112,28 @@
   .bottom-nav {
     background: var(--surface);
     border-top: 1px solid var(--border);
-    padding: 8px 0 20px;
+    padding: 8px 4px 20px;
     display: flex;
-    justify-content: space-around;
+    justify-content: space-between;
     position: sticky;
     bottom: 0;
   }
   .nav-item {
     display: flex; flex-direction: column; align-items: center;
-    gap: 3px; cursor: pointer; padding: 6px 16px;
+    gap: 3px; cursor: pointer; padding: 6px 2px;
     border-radius: var(--radius-sm);
     transition: background 0.15s;
-    font-size: 11px;
+    font-size: 10px;
     color: var(--text-light);
     font-weight: 500;
+    flex: 1 1 0;
+    min-width: 0;
+    text-align: center;
+    line-height: 1.15;
   }
   .nav-item.active { color: var(--teal); }
   .nav-item:active { background: var(--teal-light); }
-  .nav-icon { font-size: 22px; }
+  .nav-icon { font-size: 20px; }
 
   /* HOME SCREEN */
   .home-hero {
@@ -1529,7 +1533,7 @@
     </div>
 
     <div class="bottom-nav">
-      <div class="nav-item active"><div class="nav-icon">🥗</div>Mon recueil</div>
+      <div class="nav-item active" onclick="goTo('screen-patient-home')"><div class="nav-icon">🥗</div>Mon recueil</div>
       <div class="nav-item" onclick="openPatientProfile()"><div class="nav-icon">👤</div>Profil</div>
       <div class="nav-item" onclick="goTo('screen-settings');loadSettingsNotifications()"><div class="nav-icon">⚙️</div>Paramètres</div>
       <div class="nav-item" id="nav-contact-btn" onclick="showContactInfo()" style="display:none"><div class="nav-icon">✉️</div>Contact</div>
@@ -1774,7 +1778,7 @@
     </div>
 
     <div class="bottom-nav">
-      <div class="nav-item active"><div class="nav-icon">🏠</div>Accueil</div>
+      <div class="nav-item active" onclick="goTo('screen-home')"><div class="nav-icon">🏠</div>Accueil</div>
       <div class="nav-item" onclick="goTo('screen-settings');loadSettingsApiKey();loadSettingsNotifications()"><div class="nav-icon">⚙️</div>Paramètres</div>
       <div class="nav-item" onclick="logout()"><div class="nav-icon">🚪</div>Déconnexion</div>
       <div class="nav-item" onclick="deleteAccount()" style="color:#e53e3e"><div class="nav-icon">🗑️</div>Supprimer</div>
@@ -2153,7 +2157,7 @@
           <div class="settings-row-left">
             <div class="settings-icon">ℹ️</div>
             <div>
-              <div class="settings-label">NutriScanResearch v0.8.7</div>
+              <div class="settings-label">NutriScanResearch v0.8.8</div>
               <div class="settings-value">Prototype de recherche — CHU Poitiers</div>
             </div>
           </div>
