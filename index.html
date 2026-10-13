@@ -1570,7 +1570,7 @@
       <div class="form-group">
         <div style="display:flex;align-items:center;justify-content:space-between">
           <label class="form-label" style="margin:0">Afficher le bilan au patient</label>
-          <div class="toggle" id="toggle-show-bilan-summary"></div>
+          <div class="toggle" id="toggle-show-bilan-summary" onclick="toggleShowBilanQuick()"></div>
         </div>
         <div style="font-size:12px;color:var(--text-light);margin-top:6px">Si désactivé, le patient ne voit pas ses valeurs nutritionnelles — recommandé pour éviter les biais comportementaux.</div>
       </div>
@@ -2163,7 +2163,7 @@
           <div class="settings-row-left">
             <div class="settings-icon">ℹ️</div>
             <div>
-              <div class="settings-label">NutriScanResearch v0.9.1</div>
+              <div class="settings-label">NutriScanResearch v0.9.2</div>
               <div class="settings-value">Prototype de recherche — CHU Poitiers</div>
             </div>
           </div>
@@ -3008,6 +3008,60 @@
   }
 
   let currentProjectName = '';
+  let showBilanSaving = false;
+
+  // Bascule directe de "Afficher le bilan au patient" depuis l'onglet
+  // Configuration. Sauvegarde ciblée : on relit la config en base et on ne
+  // change QUE showBilan (rien d'autre n'est écrasé), avec une entrée
+  // horodatée dans config_history comme pour une modification complète.
+  async function toggleShowBilanQuick() {
+    if (showBilanSaving || !currentProject) return;
+    const el = document.getElementById('toggle-show-bilan-summary');
+    if (!el) return;
+    showBilanSaving = true;
+    const projectId = currentProject;
+    try {
+      const { data: existing, error: readErr } = await sb.from('projects')
+        .select('config, config_history').eq('id', projectId).single();
+      if (readErr || !existing) { showToast('Lecture du projet impossible', 'error'); return; }
+
+      const oldVal = !!existing.config?.showBilan;
+      const newVal = !oldVal;
+
+      const { count: mealsCount } = await sb.from('meals')
+        .select('*', { count: 'exact', head: true }).eq('project_id', projectId);
+      if (mealsCount && mealsCount > 0) {
+        const ok = confirm(
+          '⚠️ ' + mealsCount + ' repas ont déjà été enregistrés dans ce projet.\n\n' +
+          (newVal ? 'Les patients vont voir leurs valeurs nutritionnelles' : 'Les patients ne verront plus leurs valeurs nutritionnelles') +
+          ' à partir de maintenant. Ce changement peut influencer leur comportement alimentaire et la comparabilité des données collectées avant/après.\n\n' +
+          'Confirmer ?'
+        );
+        if (!ok) return;
+      }
+
+      const entry = {
+        timestamp: new Date().toISOString(),
+        modified_by: currentProfile?.id || null,
+        changes: { showBilan: { old: oldVal, new: newVal } }
+      };
+      const { data: updated, error } = await sb.from('projects').update({
+        config: { ...(existing.config || {}), showBilan: newVal },
+        config_history: [...(existing.config_history || []), entry],
+        updated_at: new Date().toISOString()
+      }).eq('id', projectId).select('id');
+
+      // Une policy RLS qui bloque renvoie 0 ligne sans erreur : on le détecte.
+      if (error || !updated || updated.length === 0) {
+        showToast('Enregistrement refusé' + (error ? ' : ' + error.message : ''), 'error');
+        return;
+      }
+      el.classList.toggle('on', newVal);
+      showToast(newVal ? 'Bilan visible par les patients ✓' : 'Bilan masqué aux patients ✓', 'success');
+    } finally {
+      showBilanSaving = false;
+    }
+  }
 
   async function openProject(projectId, projectName) {
     currentProject = projectId;
@@ -3606,6 +3660,9 @@
   // À compléter à chaque nouvelle version (entrée la plus récente en premier)
   // =============================================
   const CHANGELOG = [
+    { version: '0.9.2', changes: [
+      'Le réglage "Afficher le bilan au patient" est désormais modifiable directement depuis l\'onglet Configuration du projet (il ressemblait à un interrupteur mais ne réagissait pas). Le changement est tracé dans l\'historique du projet.'
+    ]},
     { version: '0.9.1', changes: [
       'Nutri-Score : ajout d\'une grille de calcul dédiée aux huiles, beurres, margarines, noix et graines (ratio AGS/matière grasse au lieu de grammes absolus) — corrige des scores E incorrects sur des huiles comme l\'huile d\'olive',
       'Correction : les AG saturés n\'étaient jamais demandés à l\'IA lors de la correction ou de l\'ajout manuel d\'un aliment'
