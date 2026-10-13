@@ -2163,7 +2163,7 @@
           <div class="settings-row-left">
             <div class="settings-icon">ℹ️</div>
             <div>
-              <div class="settings-label">NutriScanResearch v0.9.0</div>
+              <div class="settings-label">NutriScanResearch v0.9.1</div>
               <div class="settings-value">Prototype de recherche — CHU Poitiers</div>
             </div>
           </div>
@@ -3606,6 +3606,10 @@
   // À compléter à chaque nouvelle version (entrée la plus récente en premier)
   // =============================================
   const CHANGELOG = [
+    { version: '0.9.1', changes: [
+      'Nutri-Score : ajout d\'une grille de calcul dédiée aux huiles, beurres, margarines, noix et graines (ratio AGS/matière grasse au lieu de grammes absolus) — corrige des scores E incorrects sur des huiles comme l\'huile d\'olive',
+      'Correction : les AG saturés n\'étaient jamais demandés à l\'IA lors de la correction ou de l\'ajout manuel d\'un aliment'
+    ]},
     { version: '0.9.0', changes: [
       'Ajout de l\'historique des mises à jour, accessible depuis Paramètres'
     ]},
@@ -4294,7 +4298,7 @@ Règles : confiance 1-5, quantite_g estimation visuelle, toutes valeurs per100g 
           messages: [{ role: 'user', content:
             `Bases actives : ${dbs}. ${dbs.includes('CIQUAL')&&dbs.includes('OFF') ? 'Priorité CIQUAL pour aliments génériques, OFF pour produits de marque.' : ''}
 Donne les valeurs nutritionnelles pour 100g de : "${newName}". Indique la source utilisée (CIQUAL, OFF ou USDA).
-JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kcal":0,"prot":0,"lip":0,"gluc":0,"sucres":0,"fibres":0,"eau":0,"sel":0,"ca":0,"fe":0,"vitC":0,"vitD":0,"vitB12":0,"folates":0,"mg":0,"zn":0,"k":0,"omega3":0}}`
+JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kcal":0,"prot":0,"lip":0,"gluc":0,"sucres":0,"ag_sat":0,"fibres":0,"eau":0,"sel":0,"ca":0,"fe":0,"vitC":0,"vitD":0,"vitB12":0,"folates":0,"mg":0,"zn":0,"k":0,"omega3":0}}`
           }]
         })
       });
@@ -4328,7 +4332,7 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
           messages: [{ role: 'user', content:
             `Bases actives : ${dbs}. ${dbs.includes('CIQUAL')&&dbs.includes('OFF') ? 'Priorité CIQUAL pour aliments génériques, OFF pour produits de marque.' : ''}
 Donne les valeurs nutritionnelles pour 100g de : "${name}". Indique la source utilisée (CIQUAL, OFF ou USDA).
-JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kcal":0,"prot":0,"lip":0,"gluc":0,"sucres":0,"fibres":0,"eau":0,"sel":0,"ca":0,"fe":0,"vitC":0,"vitD":0,"vitB12":0,"folates":0,"mg":0,"zn":0,"k":0,"omega3":0}}`
+JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kcal":0,"prot":0,"lip":0,"gluc":0,"sucres":0,"ag_sat":0,"fibres":0,"eau":0,"sel":0,"ca":0,"fe":0,"vitC":0,"vitD":0,"vitB12":0,"folates":0,"mg":0,"zn":0,"k":0,"omega3":0}}`
           }]
         })
       });
@@ -4442,6 +4446,26 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
   const NS_FIBRES    = [3,4.1,5.2,6.3,7.4];
   const NS_PROTEINES = [2.4,4.8,7.2,9.6,12,14,17];
 
+  // Grille spécifique "Matières grasses, fruits à coque et graines"
+  // (huiles, beurres, margarines, noix/graines) — onglet dédié du fichier
+  // officiel. Deux différences majeures avec le cas général :
+  //  - les AGS sont notés en RATIO AGS/matière grasse totale (%), pas en
+  //    grammes absolus (une huile pure sera toujours ~100% matière grasse,
+  //    la grille générale la pénaliserait à tort comme n'importe quelle
+  //    graisse animale) ;
+  //  - l'énergie prise en compte est celle issue des seuls AGS
+  //    (ag_sat × 37 kJ/g), pas l'énergie totale du produit.
+  // Sucres, sel, fibres, protéines et FVL réutilisent les mêmes grilles
+  // que le cas général (identiques dans le fichier officiel).
+  const NS_FAT_RATIO_AGS   = [10,16,22,28,34,40,46,52,58,64];
+  const NS_FAT_ENERGIE_AGS = [120,240,360,480,600,720,840,960,1080,1200];
+
+  function nsPtsRatioAGS(ratioPct) {
+    const r = +ratioPct || 0;
+    for (let i = 0; i < NS_FAT_RATIO_AGS.length; i++) if (r < NS_FAT_RATIO_AGS[i]) return i;
+    return NS_FAT_RATIO_AGS.length;
+  }
+
   function nsPts(v, seuils) {
     for (let i = 0; i < seuils.length; i++) if ((+v||0) <= seuils[i]) return i;
     return seuils.length;
@@ -4456,7 +4480,9 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
   }
   function nsCategorie(nom) {
     if (isAlcoholicBeverage(nom)) return 'alcool';
-    return /bœuf|boeuf|veau|agneau|mouton|steak|entrecôte/i.test(nom||'') ? 'viande_rouge' : 'general';
+    if (/bœuf|boeuf|veau|agneau|mouton|steak|entrecôte/i.test(nom||'')) return 'viande_rouge';
+    if (/huile|oil|beurre|butter|margarine|saindoux|graisse|noix|noisette|amande|cacahu[eè]te|pistache|pignon|graine|seed|fruit.{0,3}à coque/i.test(nom||'')) return 'matieres_grasses';
+    return 'general';
   }
 
   // =============================================
@@ -4512,6 +4538,28 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
 
     // Si aucune donnée exploitable, on renonce
     if (!kj && !sucs && !ags && !sel && !fib && !prot) return null;
+
+    if (cat === 'matieres_grasses') {
+      const mg = +(p.lip ?? p.matiere_grasse ?? p.mg_totales ?? 0);
+      const ratioAGS   = mg > 0 ? (ags / mg) * 100 : 0;
+      const energieAGS = ags * 37;
+
+      const pRatio  = nsPtsRatioAGS(ratioAGS);
+      const pEner   = nsPts(energieAGS, NS_FAT_ENERGIE_AGS);
+      const pSucre  = nsPts(sucs, NS_SUCRES);
+      const pSel    = nsPts(sel,  NS_SEL);
+      const pointsA = pSucre + pSel + pEner + pRatio;
+
+      const pFVL  = nsFVL(fvl);
+      const pFib  = nsPts(fib,  NS_FIBRES);
+      const pProt = nsPts(prot, NS_PROTEINES);
+      const pointsC = pFVL + pFib + pProt;
+
+      // Seuil de bascule à 7 (au lieu de 11 pour le cas général) : c'est
+      // la valeur officielle propre à cette catégorie dans le fichier fourni.
+      const score = pointsA < 7 ? pointsA - pointsC : pointsA - pFVL - pFib;
+      return { lettre: nsLetter(score), score, pointsA, pointsC, categorie: cat };
+    }
 
     const pE = nsPts(kj,   NS_ENERGIE);
     const pA = nsPts(ags,  NS_AGS);
@@ -5277,7 +5325,7 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
       var response = await fetch('/api/analyze', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 500,
-          messages: [{ role: 'user', content: 'Bases : ' + dbs + '. Valeurs pour 100g de "' + name + '". JSON: {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kcal":0,"prot":0,"lip":0,"gluc":0,"sucres":0,"fibres":0,"eau":0,"sel":0,"ca":0,"fe":0,"vitC":0,"vitD":0,"vitB12":0,"folates":0,"mg":0,"zn":0,"k":0,"omega3":0}}' }]
+          messages: [{ role: 'user', content: 'Bases : ' + dbs + '. Valeurs pour 100g de "' + name + '". JSON: {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kcal":0,"prot":0,"lip":0,"gluc":0,"sucres":0,"ag_sat":0,"fibres":0,"eau":0,"sel":0,"ca":0,"fe":0,"vitC":0,"vitD":0,"vitB12":0,"folates":0,"mg":0,"zn":0,"k":0,"omega3":0}}' }]
         })
       });
       var data = await response.json();
