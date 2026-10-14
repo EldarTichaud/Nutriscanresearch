@@ -1667,7 +1667,7 @@
     </div>
     <div class="bottom-nav">
       <div class="nav-item" onclick="goTo('screen-home')"><div class="nav-icon">🏠</div>Accueil</div>
-      <div class="nav-item" onclick="goTo('screen-settings');loadSettingsApiKey();loadSettingsNotifications()"><div class="nav-icon">⚙️</div>Paramètres</div>
+      <div class="nav-item" onclick="goTo('screen-settings');loadSettingsNotifications()"><div class="nav-icon">⚙️</div>Paramètres</div>
       <div class="nav-item" onclick="logout()"><div class="nav-icon">🚪</div>Déconnexion</div>
       <div class="nav-item" onclick="deleteAccount()" style="color:#e53e3e"><div class="nav-icon">🗑️</div>Supprimer</div>
     </div>
@@ -1785,7 +1785,7 @@
 
     <div class="bottom-nav">
       <div class="nav-item active" onclick="goTo('screen-home')"><div class="nav-icon">🏠</div>Accueil</div>
-      <div class="nav-item" onclick="goTo('screen-settings');loadSettingsApiKey();loadSettingsNotifications()"><div class="nav-icon">⚙️</div>Paramètres</div>
+      <div class="nav-item" onclick="goTo('screen-settings');loadSettingsNotifications()"><div class="nav-icon">⚙️</div>Paramètres</div>
       <div class="nav-item" onclick="logout()"><div class="nav-icon">🚪</div>Déconnexion</div>
       <div class="nav-item" onclick="deleteAccount()" style="color:#e53e3e"><div class="nav-icon">🗑️</div>Supprimer</div>
     </div>
@@ -2143,27 +2143,12 @@
       </div>
 
       <div class="settings-section">
-        <div class="section-label">Clé API Anthropic</div>
-        <div style="padding:12px 0">
-          <div style="font-size:13px;color:var(--text-light);margin-bottom:10px">Nécessaire pour l'analyse photo et la saisie texte. N'est jamais transmise à nos serveurs.</div>
-          <input type="password" class="form-input" id="settings-api-key"
-            placeholder="sk-ant-api03-..."
-            style="font-family:monospace;font-size:12px;margin-bottom:10px" />
-          <div style="display:flex;gap:8px">
-            <button class="btn btn-primary" style="flex:1;padding:10px" onclick="saveApiKey()">Enregistrer</button>
-            <button class="btn btn-secondary" style="padding:10px 14px" onclick="toggleApiKeyVisibility()">👁</button>
-          </div>
-          <div id="api-key-status" style="font-size:12px;margin-top:8px;color:var(--text-light)"></div>
-        </div>
-      </div>
-
-      <div class="settings-section">
         <div class="section-label">À propos</div>
         <div class="settings-row">
           <div class="settings-row-left">
             <div class="settings-icon">ℹ️</div>
             <div>
-              <div class="settings-label">NutriScanResearch v0.9.5</div>
+              <div class="settings-label">NutriScanResearch v0.9.6</div>
               <div class="settings-value">Prototype de recherche — CHU Poitiers</div>
             </div>
           </div>
@@ -2368,21 +2353,6 @@
     </div>
   </div>
 
-  <!-- Modal API Key Patient -->
-  <div class="modal-overlay" id="modal-patient-apikey" onclick="closeModal('modal-patient-apikey')">
-    <div class="modal" onclick="event.stopPropagation()">
-      <div class="modal-handle"></div>
-      <div class="modal-title">Clé API Anthropic</div>
-      <p style="font-size:13px;color:var(--text-light);margin-bottom:12px">Nécessaire pour l'analyse des repas. Saisie une seule fois sur cet appareil.</p>
-      <input type="password" class="form-input" id="patient-api-key-input" placeholder="sk-ant-api03-..." style="font-family:monospace;font-size:12px;margin-bottom:10px" />
-      <div style="display:flex;gap:8px;margin-bottom:8px">
-        <button class="btn btn-primary" style="flex:1" onclick="savePatientApiKey()">Enregistrer</button>
-        <button class="btn btn-secondary" style="padding:10px 14px" onclick="togglePatientApiKeyVisibility()">👁</button>
-      </div>
-      <div id="patient-api-key-status" style="font-size:12px;color:var(--text-light)"></div>
-    </div>
-  </div>
-
 </div>
 
 <script>
@@ -2431,30 +2401,17 @@
   // =============================================
   const SUPABASE_URL = 'https://nhxrrfdwebfaoxyvnwes.supabase.co';
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5oeHJyZmR3ZWJmYW94eXZud2VzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgyNTg1ODQsImV4cCI6MjA5MzgzNDU4NH0.Ekmpm6LvL6sIr-n1qnyad--XMgzyJBk-vWh_mLq_xTY';
-  function getApiKey() { return localStorage.getItem('nsr_api_key') || ''; }
-  function saveApiKey() {
-    const key = document.getElementById('settings-api-key').value.trim();
-    if (!key.startsWith('sk-ant-')) { showToast('Clé invalide — doit commencer par sk-ant-', 'error'); return; }
-    localStorage.setItem('nsr_api_key', key);
-    document.getElementById('api-key-status').textContent = '✓ Clé enregistrée sur cet appareil';
-    document.getElementById('api-key-status').style.color = 'var(--teal)';
-    showToast('Clé API enregistrée', 'success');
-  }
-  function toggleApiKeyVisibility() {
-    const el = document.getElementById('settings-api-key');
-    el.type = el.type === 'password' ? 'text' : 'password';
-  }
-  function loadSettingsApiKey() {
-    const key = getApiKey();
-    const el = document.getElementById('settings-api-key');
-    if (el) {
-      el.value = key;
-      const status = document.getElementById('api-key-status');
-      if (key) { status.textContent = '✓ Clé enregistrée sur cet appareil'; status.style.color = 'var(--teal)'; }
-      else { status.textContent = 'Aucune clé configurée'; }
-    }
-  }
+  // Ancienne clé API saisie par l'utilisateur : supprimée (la clé est désormais uniquement côté serveur)
+  try { localStorage.removeItem('nsr_api_key'); } catch(_) {}
   const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  // Appel de l'analyse IA : le serveur exige le jeton de la session connectée
+  async function nsrAnalyzeFetch(opts) {
+    const { data } = await sb.auth.getSession();
+    const token = data && data.session && data.session.access_token;
+    const headers = Object.assign({}, opts.headers || {}, token ? { Authorization: 'Bearer ' + token } : {});
+    return fetch('/api/analyze', Object.assign({}, opts, { headers }));
+  }
 
   let currentUser = null;
   let currentProfile = null;
@@ -3570,7 +3527,7 @@
     const prompt = buildPrompt() + `\n\n(SAISIE MANUELLE — pas de photo. Description du repas : "${text}". Identifie chaque aliment mentionné ou implicite.)`;
 
     try {
-      const response = await fetch('/api/analyze', {
+      const response = await nsrAnalyzeFetch({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 4000,
@@ -3671,6 +3628,10 @@
   // À compléter à chaque nouvelle version (entrée la plus récente en premier)
   // =============================================
   const CHANGELOG = [
+    { version: '0.9.6', changes: [
+      'Sécurité : l\'analyse IA exige désormais un compte connecté appartenant à l\'étude ; le serveur impose le modèle et limite la taille des réponses (plus d\'accès libre à la clé Anthropic de l\'étude)',
+      'Suppression de l\'ancien champ « Clé API Anthropic » (inutile : la clé est gérée côté serveur) ; toute clé déjà saisie sur l\'appareil est effacée'
+    ]},
     { version: '0.9.5', changes: [
       'Sécurité : seules les adresses e-mail figurant sur la liste des investigateurs autorisés peuvent créer un compte investigateur, et le rôle d\'un profil n\'est plus modifiable depuis l\'application',
       'Un compte sans profil n\'est plus automatiquement transformé en investigateur'
@@ -3996,27 +3957,6 @@
     }
     goTo('screen-patient-profile');
   }
-  function showPatientApiKeyModal() {
-    const key = getApiKey();
-    const input = document.getElementById('patient-api-key-input');
-    const status = document.getElementById('patient-api-key-status');
-    if (input) input.value = key;
-    if (status) status.textContent = key ? '✓ Clé enregistrée sur cet appareil' : 'Aucune clé configurée';
-    document.getElementById('modal-patient-apikey').classList.add('active');
-  }
-  function savePatientApiKey() {
-    const key = document.getElementById('patient-api-key-input').value.trim();
-    if (!key.startsWith('sk-ant-')) { showToast('Clé invalide', 'error'); return; }
-    localStorage.setItem('nsr_api_key', key);
-    document.getElementById('patient-api-key-status').textContent = '✓ Clé enregistrée sur cet appareil';
-    document.getElementById('patient-api-key-status').style.color = 'var(--teal)';
-    showToast('Clé API enregistrée', 'success');
-    closeModal('modal-patient-apikey');
-  }
-  function togglePatientApiKeyVisibility() {
-    const el = document.getElementById('patient-api-key-input');
-    el.type = el.type === 'password' ? 'text' : 'password';
-  }
   function showContactInfo() {
     if (currentContactEmail) {
       if (confirm('Contacter l\'investigateur ?\n\n' + currentContactEmail + '\n\nOuvrir la messagerie ?')) {
@@ -4186,7 +4126,7 @@ Règles : confiance 1-5, quantite_g estimation visuelle, toutes valeurs per100g 
         }];
       }
 
-      const response = await fetch('/api/analyze', {
+      const response = await nsrAnalyzeFetch({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 4000, messages })
@@ -4372,7 +4312,7 @@ Règles : confiance 1-5, quantite_g estimation visuelle, toutes valeurs per100g 
     document.getElementById(`food-card-${i}`).innerHTML = `<div class="loading-state"><div class="spinner"></div><div class="loading-text">Recherche dans les bases…</div></div>`;
     try {
       const dbs = Object.entries(activeDatabases).filter(([,v])=>v).map(([k])=>k.toUpperCase()).join(', ');
-      const response = await fetch('/api/analyze', {
+      const response = await nsrAnalyzeFetch({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 500,
@@ -4406,7 +4346,7 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
       `<div id="food-card-${idx}" class="food-result-card"><div class="loading-state"><div class="spinner"></div><div class="loading-text">Recherche dans les bases…</div></div></div>`);
     try {
       const dbs = Object.entries(activeDatabases).filter(([,v])=>v).map(([k])=>k.toUpperCase()).join(', ');
-      const response = await fetch('/api/analyze', {
+      const response = await nsrAnalyzeFetch({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 500,
@@ -5422,7 +5362,7 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
       '<div id="food-card-' + idx + '" class="food-result-card"><div class="loading-state"><div class="spinner"></div><div class="loading-text">Recherche…</div></div></div>');
     try {
       var dbs = Object.entries(activeDatabases).filter(function(e){ return e[1]; }).map(function(e){ return e[0].toUpperCase(); }).join(', ');
-      var response = await fetch('/api/analyze', {
+      var response = await nsrAnalyzeFetch({
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 500,
           messages: [{ role: 'user', content: 'Bases : ' + dbs + '. Valeurs pour 100g de "' + name + '". JSON: {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kcal":0,"prot":0,"lip":0,"gluc":0,"sucres":0,"ag_sat":0,"fibres":0,"eau":0,"sel":0,"ca":0,"fe":0,"vitC":0,"vitD":0,"vitB12":0,"folates":0,"mg":0,"zn":0,"k":0,"omega3":0}}' }]
