@@ -2163,7 +2163,7 @@
           <div class="settings-row-left">
             <div class="settings-icon">ℹ️</div>
             <div>
-              <div class="settings-label">NutriScanResearch v0.9.4</div>
+              <div class="settings-label">NutriScanResearch v0.9.5</div>
               <div class="settings-value">Prototype de recherche — CHU Poitiers</div>
             </div>
           </div>
@@ -2477,13 +2477,20 @@
   async function loadProfile() {
     const { data } = await sb.from('profiles').select('*').eq('id', currentUser.id).maybeSingle();
     if (!data) {
-      // Profil manquant — créer automatiquement en tant qu'investigateur (ne devrait pas arriver pour un patient)
-      const { data: created } = await sb.from('profiles').insert({
+      // Profil manquant. Seul un investigateur autorisé (liste blanche côté base)
+      // peut voir son profil recréé ; pour tout autre compte la base refuse.
+      const { data: created, error: createErr } = await sb.from('profiles').insert({
         id: currentUser.id,
         role: 'investigateur',
         prenom: '',
         nom: currentUser.email.split('@')[0]
       }).select().single();
+      if (createErr || !created) {
+        currentProfile = null;
+        showToast('Profil introuvable. Contactez votre investigateur.', 'error');
+        try { await sb.auth.signOut(); } catch(_) {}
+        return;
+      }
       currentProfile = created;
     } else {
       currentProfile = data;
@@ -2592,7 +2599,15 @@
     const { data, error } = await sb.auth.signUp({ email, password: pwd });
     if (error) { errMsg.textContent = error.message; errEl.style.display = 'flex'; return; }
 
-    await sb.from('profiles').insert({ id: data.user.id, role: 'investigateur', prenom, nom });
+    const { error: profErr } = await sb.from('profiles').insert({ id: data.user.id, role: 'investigateur', prenom, nom });
+    if (profErr) {
+      // Adresse non autorisée comme investigateur : ne pas laisser de compte orphelin
+      try { await sb.rpc('delete_own_account'); } catch(_) {}
+      try { await sb.auth.signOut(); } catch(_) {}
+      errMsg.textContent = 'Inscription réservée aux investigateurs autorisés. Si vous êtes patient, utilisez le code d\'activation fourni par votre investigateur.';
+      errEl.style.display = 'flex';
+      return;
+    }
     successEl.style.display = 'flex';
   }
 
@@ -3656,6 +3671,10 @@
   // À compléter à chaque nouvelle version (entrée la plus récente en premier)
   // =============================================
   const CHANGELOG = [
+    { version: '0.9.5', changes: [
+      'Sécurité : seules les adresses e-mail figurant sur la liste des investigateurs autorisés peuvent créer un compte investigateur, et le rôle d\'un profil n\'est plus modifiable depuis l\'application',
+      'Un compte sans profil n\'est plus automatiquement transformé en investigateur'
+    ]},
     { version: '0.9.4', changes: [
       'Sécurité : l\'activation d\'un compte patient passe désormais par des fonctions serveur (vérification du code puis création du profil et rattachement au projet en une seule opération) — les codes d\'activation ne sont plus lisibles ni modifiables par un visiteur',
       'Correction : l\'enregistrement des horaires de rappel et de l\'abonnement aux notifications est maintenant vérifié (avant, un refus de la base était ignoré en silence)',
