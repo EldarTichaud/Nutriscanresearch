@@ -2163,7 +2163,7 @@
           <div class="settings-row-left">
             <div class="settings-icon">ℹ️</div>
             <div>
-              <div class="settings-label">NutriScanResearch v0.9.2</div>
+              <div class="settings-label">NutriScanResearch v0.9.4</div>
               <div class="settings-value">Prototype de recherche — CHU Poitiers</div>
             </div>
           </div>
@@ -2614,29 +2614,13 @@
     setActivationStep(1);
 
     try {
-      // Étape 1 : Valider le token
-      const { data: token, error: tokenErr } = await sb.from('activation_tokens')
-        .select('*').eq('token', code).single();
-
-      if (tokenErr || !token) {
-        errMsg.textContent = 'Code d\'activation invalide.'; errEl.style.display = 'flex';
-        setBtnLoading('btn-activate', false, 'Activer mon compte'); return;
-      }
-      if (token.used) {
-        errMsg.textContent = 'Ce code a déjà été utilisé. Si c\'est vous, connectez-vous directement.';
-        errEl.style.display = 'flex';
-        setBtnLoading('btn-activate', false, 'Activer mon compte'); return;
-      }
-      if (token.email && token.email !== email) {
-        errMsg.textContent = 'L\'adresse e-mail ne correspond pas à ce code.';
-        errEl.style.display = 'flex';
-        setBtnLoading('btn-activate', false, 'Activer mon compte'); return;
-      }
-      if (new Date(token.expires_at) < new Date()) {
-        errMsg.textContent = 'Ce code a expiré. Demandez un nouveau code à votre investigateur.';
-        errEl.style.display = 'flex';
-        setBtnLoading('btn-activate', false, 'Activer mon compte'); return;
-      }
+      // Étape 1 : Valider le code (fonction serveur : ne renvoie qu'un statut)
+      const { data: status, error: tokenErr } = await sb.rpc('check_activation_token', { p_token: code, p_email: email });
+      const fail = (m) => { errMsg.textContent = m; errEl.style.display = 'flex'; setBtnLoading('btn-activate', false, 'Activer mon compte'); };
+      if (tokenErr) { fail('Vérification impossible pour le moment. Réessayez dans un instant.'); return; }
+      if (status === 'used') { fail('Ce code a déjà été utilisé. Si c\'est vous, connectez-vous directement.'); return; }
+      if (status === 'expired') { fail('Ce code a expiré. Demandez un nouveau code à votre investigateur.'); return; }
+      if (status !== 'ok') { fail('Code d\'activation ou adresse e-mail invalide.'); return; }
 
       setActivationStep(2);
       showToast('Code valide ✓', 'success');
@@ -2657,10 +2641,16 @@
 
       showToast('Compte créé ✓', 'success');
 
-      // Étape 3 : Créer le profil et lier au projet
-      await sb.from('profiles').insert({ id: userId, role: 'patient', prenom: '', nom: '' });
-      await sb.from('project_patients').insert({ project_id: token.project_id, patient_id: userId });
-      await sb.from('activation_tokens').update({ used: true }).eq('id', token.id);
+      // Étape 3 : profil + rattachement au projet + code consommé, en une opération serveur
+      const { error: actErr } = await sb.rpc('activate_patient', { p_token: code });
+      if (actErr) {
+        // Ne pas laisser un compte orphelin (sans profil ni projet)
+        try { await sb.rpc('delete_own_account'); } catch(_) {}
+        try { await sb.auth.signOut(); } catch(_) {}
+        errMsg.textContent = 'Activation impossible : ' + actErr.message + '. Aucun compte n\'a été conservé, vous pouvez réessayer.';
+        errEl.style.display = 'flex';
+        setBtnLoading('btn-activate', false, 'Activer mon compte'); return;
+      }
 
       setActivationStep(3);
       showToast('Compte activé ! Connexion en cours…', 'success');
@@ -3147,7 +3137,7 @@
 
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     const token = 'NR-' + new Date().getFullYear() + '-' +
-      Array.from({length:6}, () => chars[Math.floor(Math.random()*chars.length)]).join('');
+      Array.from(crypto.getRandomValues(new Uint8Array(6)), v => chars[v % chars.length]).join('');
     const expires = new Date(); expires.setDate(expires.getDate() + 7);
 
     const { error } = await sb.from('activation_tokens').insert({
@@ -3370,11 +3360,17 @@
     if (subscription) payload.push_subscription = subscription;
     if (times) payload.reminder_times = times;
     if (refused !== undefined) payload.notifications_refused = refused;
-    await sb.from('project_patients')
+    const { data: upd, error: updErr } = await sb.from('project_patients')
       .update(payload)
       .eq('patient_id', currentProfile.id)
-      .eq('project_id', currentProject);
+      .eq('project_id', currentProject)
+      .select('patient_id');
+    if (updErr || !upd || !upd.length) {
+      showToast('Réglages de rappel non enregistrés. Réessayez.', 'error');
+      return false;
+    }
     currentProfile._pushConfigured = true;
+    return true;
   }
 
   window.enablePushNotifications = async function() {
@@ -3660,6 +3656,15 @@
   // À compléter à chaque nouvelle version (entrée la plus récente en premier)
   // =============================================
   const CHANGELOG = [
+    { version: '0.9.4', changes: [
+      'Sécurité : l\'activation d\'un compte patient passe désormais par des fonctions serveur (vérification du code puis création du profil et rattachement au projet en une seule opération) — les codes d\'activation ne sont plus lisibles ni modifiables par un visiteur',
+      'Correction : l\'enregistrement des horaires de rappel et de l\'abonnement aux notifications est maintenant vérifié (avant, un refus de la base était ignoré en silence)',
+      'Les codes d\'invitation sont générés avec un générateur aléatoire cryptographique'
+    ]},
+    { version: '0.9.3', changes: [
+      'Nutri-Score : correction de la détection des matières grasses, fruits à coque et graines — seuls les aliments dont le nom commence par ce produit (huile, beurre, amandes…) utilisent cette grille ; les plats composés (pain au beurre, thon à l\'huile…) retrouvent la grille générale',
+      'Nutri-Score : échelle de lettres propre à cette grille (A réservé aux scores inférieurs à -5)'
+    ]},
     { version: '0.9.2', changes: [
       'Le réglage "Afficher le bilan au patient" est désormais modifiable directement depuis l\'onglet Configuration du projet (il ressemblait à un interrupteur mais ne réagissait pas). Le changement est tracé dans l\'historique du projet.'
     ]},
@@ -4532,15 +4537,34 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
     if (score <  1) return 'A'; if (score <  3) return 'B';
     if (score < 11) return 'C'; if (score < 19) return 'D'; return 'E';
   }
+  // Échelle de lettres propre à la grille "Matières grasses, fruits à coque
+  // et graines" (formule AJ de l'onglet dédié) : A est réservé aux scores < -5.
+  function nsLetterMG(score) {
+    if (score < -5) return 'A'; if (score <  3) return 'B';
+    if (score < 11) return 'C'; if (score < 19) return 'D'; return 'E';
+  }
   function nsColor(l) {
     return {A:'#038141',B:'#85BB2F',C:'#FECB02',D:'#EE8100',E:'#E63E11'}[l] ?? '#888';
   }
   function nsCategorie(nom) {
     if (isAlcoholicBeverage(nom)) return 'alcool';
     if (/bœuf|boeuf|veau|agneau|mouton|steak|entrecôte/i.test(nom||'')) return 'viande_rouge';
-    if (/huile|oil|beurre|butter|margarine|saindoux|graisse|noix|noisette|amande|cacahu[eè]te|pistache|pignon|graine|seed|fruit.{0,3}à coque/i.test(nom||'')) return 'matieres_grasses';
+    if (NS_MG_RE.test((nom||'').trim())) return 'matieres_grasses';
     return 'general';
   }
+
+  // Matières grasses, fruits à coque et graines : le nom doit COMMENCER par
+  // le produit lui-même. Ancrer au début évite de classer à tort des plats
+  // composés ("pain au beurre", "thon à l'huile", "gâteau aux amandes",
+  // "noix de Saint-Jacques", "pain aux graines"…) dans cette grille.
+  const NS_MG_RE = new RegExp('^(?:' + [
+    'huiles?\\b', 'beurres?\\b', 'margarines?\\b', 'saindoux\\b', 'graisses?\\b',
+    'amandes?\\b', 'noisettes?\\b', 'cacahu[eè]tes?\\b', 'pistaches?\\b', 'pignons?\\b',
+    'noix(?!\\s+(?:de|du|d\')\\s*(?:saint|st\\b|jambon|veau|b[oœ]uf|porc|joue))',
+    'graines?\\s+(?:de|d\')\\s*(?:tournesol|courge|lin|chia|s[eé]same|pavot|chanvre)',
+    'pur[eé]es?\\s+(?:de|d\')\\s*(?:amandes?|noisettes?|cacahu[eè]tes?|s[eé]same)',
+    'tahin[ie]?\\b'
+  ].join('|') + ')', 'i');
 
   // =============================================
   // BOISSONS ALCOOLISÉES — exclusion du Nutri-Score
@@ -4615,7 +4639,7 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
       // Seuil de bascule à 7 (au lieu de 11 pour le cas général) : c'est
       // la valeur officielle propre à cette catégorie dans le fichier fourni.
       const score = pointsA < 7 ? pointsA - pointsC : pointsA - pFVL - pFib;
-      return { lettre: nsLetter(score), score, pointsA, pointsC, categorie: cat };
+      return { lettre: nsLetterMG(score), score, pointsA, pointsC, categorie: cat };
     }
 
     const pE = nsPts(kj,   NS_ENERGIE);
