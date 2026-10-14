@@ -2148,7 +2148,7 @@
           <div class="settings-row-left">
             <div class="settings-icon">ℹ️</div>
             <div>
-              <div class="settings-label">NutriScanResearch v0.9.6</div>
+              <div class="settings-label">NutriScanResearch v0.10.0</div>
               <div class="settings-value">Prototype de recherche — CHU Poitiers</div>
             </div>
           </div>
@@ -3538,14 +3538,9 @@
       if (data.error) throw new Error(data.error.message);
       const clean = data.content[0].text.replace(/```json|```/g, '').trim();
       const parsed = JSON.parse(clean);
-      identifiedAliments = parsed.aliments.map((a, i) => {
-        const ns = computeNutriscore(a);
-        return { ...a, idx: i,
-          nutriscore: ns?.lettre ?? a.nutriscore ?? null,
-          nutriscore_na: ns?.nonApplicable || false,
-          nova: correctNova(a.nom, a.nova)
-        };
-      });
+      identifiedAliments = parsed.aliments.map((a, i) => nsApply({ ...a, idx: i,
+        nova: correctNova(a.nom, a.nova)
+      }));
       document.getElementById('analysis-loading').style.display = 'none';
       renderConfirmScreen();
       goTo('screen-confirm');
@@ -3628,6 +3623,13 @@
   // À compléter à chaque nouvelle version (entrée la plus récente en premier)
   // =============================================
   const CHANGELOG = [
+    { version: '0.10.0', changes: [
+      'Nutri-Score : correction de la règle des points A ≥ 11 (le calcul retirait les protéines au lieu des fruits et légumes) — vérifié sur 496 cas contre le tableur officiel recalculé, 0 écart',
+      'Nutri-Score : ajout de la grille Boissons (eaux, laits, boissons végétales, jus, sodas, thé, café ; +4 points si édulcorant non nutritif) et de la règle Fromages (protéines toujours comptées)',
+      'Nutri-Score : le pourcentage de fruits, légumes et légumes secs est maintenant fourni par l\'IA et pris en compte (il était toujours à 0 jusqu\'ici)',
+      'Nutri-Score : la charcuterie, le porc et le gibier suivent la règle viande rouge (protéines plafonnées à 2 points) ; la crème rejoint les matières grasses',
+      'Correction : le Nutri-Score est désormais recalculé quand on corrige un aliment ou qu\'on en ajoute un à la main (l\'ancienne lettre était conservée ou absente)'
+    ]},
     { version: '0.9.6', changes: [
       'Sécurité : l\'analyse IA exige désormais un compte connecté appartenant à l\'étude ; le serveur impose le modèle et limite la taille des réponses (plus d\'accès libre à la clé Anthropic de l\'étude)',
       'Suppression de l\'ancien champ « Clé API Anthropic » (inutile : la clé est gérée côté serveur) ; toute clé déjà saisie sur l\'appareil est effacée'
@@ -4041,6 +4043,9 @@ Réponds UNIQUEMENT en JSON valide, sans markdown :
     "db_nom": "nom exact dans la base utilisée",
     "source": "CIQUAL" | "OFF" | "USDA",
     "emoji": "emoji",
+    "fvl_pct": 0,
+    "edulcorant": false,
+    "ns_cat": "general",
     "quantite_g": 150,
     "confiance": 4,
     ${Object.keys(extraSchema).length ? '"' + Object.keys(extraSchema).join('": null, "') + '": null,' : ''}
@@ -4048,7 +4053,7 @@ Réponds UNIQUEMENT en JSON valide, sans markdown :
   }]
 }
 
-Règles : confiance 1-5, quantite_g estimation visuelle, toutes valeurs per100g obligatoires (0 si absent).`;
+Règles : confiance 1-5, quantite_g estimation visuelle, toutes valeurs per100g obligatoires (0 si absent). fvl_pct = % de fruits, légumes et légumineuses dans le produit tel que mangé (0-100 ; hors pommes de terre, fruits à coque, graines, huiles ; 100 pour un fruit ou légume nature ou un jus pur fruit). edulcorant = true seulement si une boisson contient des édulcorants non nutritifs (aspartame, acésulfame K, sucralose, stévia, saccharine ; pas les polyols). ns_cat = "boisson" (eau, lait, boisson végétale, jus, soda, thé, café), "eau" (eau nature seule), "fromage" (hors fromage blanc), "viande_rouge" (bœuf, veau, agneau, porc, charcuterie) ou "general".`;
   }
 
 
@@ -4138,14 +4143,9 @@ Règles : confiance 1-5, quantite_g estimation visuelle, toutes valeurs per100g 
       const clean = text.replace(/```json|```/g, '').trim();
       const parsed = JSON.parse(clean);
 
-      identifiedAliments = parsed.aliments.map((a, i) => {
-        const ns = computeNutriscore(a);
-        return { ...a, idx: i,
-          nutriscore: ns?.lettre ?? a.nutriscore ?? null,
-          nutriscore_na: ns?.nonApplicable || false,
-          nova: correctNova(a.nom, a.nova)
-        };
-      });
+      identifiedAliments = parsed.aliments.map((a, i) => nsApply({ ...a, idx: i,
+        nova: correctNova(a.nom, a.nova)
+      }));
 
       loadingEl.style.display = 'none';
       renderConfirmScreen();
@@ -4318,14 +4318,14 @@ Règles : confiance 1-5, quantite_g estimation visuelle, toutes valeurs per100g 
         body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 500,
           messages: [{ role: 'user', content:
             `Bases actives : ${dbs}. ${dbs.includes('CIQUAL')&&dbs.includes('OFF') ? 'Priorité CIQUAL pour aliments génériques, OFF pour produits de marque.' : ''}
-Donne les valeurs nutritionnelles pour 100g de : "${newName}". Indique la source utilisée (CIQUAL, OFF ou USDA).
-JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kcal":0,"prot":0,"lip":0,"gluc":0,"sucres":0,"ag_sat":0,"fibres":0,"eau":0,"sel":0,"ca":0,"fe":0,"vitC":0,"vitD":0,"vitB12":0,"folates":0,"mg":0,"zn":0,"k":0,"omega3":0}}`
+Donne les valeurs nutritionnelles pour 100g de : "${newName}". Indique la source utilisée (CIQUAL, OFF ou USDA). fvl_pct = % de fruits, légumes et légumineuses dans le produit tel que mangé (0-100 ; hors pommes de terre, fruits à coque, graines, huiles ; 100 pour un fruit ou légume nature ou un jus pur fruit). edulcorant = true seulement si une boisson contient des édulcorants non nutritifs (aspartame, acésulfame K, sucralose, stévia, saccharine ; pas les polyols). ns_cat = "boisson" (eau, lait, boisson végétale, jus, soda, thé, café), "eau" (eau nature seule), "fromage" (hors fromage blanc), "viande_rouge" (bœuf, veau, agneau, porc, charcuterie) ou "general".
+JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","fvl_pct":0,"edulcorant":false,"ns_cat":"general","per100g":{"kcal":0,"prot":0,"lip":0,"gluc":0,"sucres":0,"ag_sat":0,"fibres":0,"eau":0,"sel":0,"ca":0,"fe":0,"vitC":0,"vitD":0,"vitB12":0,"folates":0,"mg":0,"zn":0,"k":0,"omega3":0}}`
           }]
         })
       });
       const data = await response.json();
       const parsed = JSON.parse(data.content[0].text.replace(/```json|```/g,'').trim());
-      identifiedAliments[i] = { ...identifiedAliments[i], nom: newName, ...parsed, quantite_g: identifiedAliments[i]?.quantite_g || 100, confiance: 3, idx: i };
+      identifiedAliments[i] = nsApply({ ...identifiedAliments[i], nom: newName, ...parsed, quantite_g: identifiedAliments[i]?.quantite_g || 100, confiance: 3, idx: i });
       document.getElementById(`food-card-${i}`).outerHTML = buildFoodCard(identifiedAliments[i], i);
     } catch(e) {
       document.getElementById(`food-card-${i}`).outerHTML = buildFoodCard({ ...identifiedAliments[i], nom: newName }, i);
@@ -4352,14 +4352,14 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
         body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 500,
           messages: [{ role: 'user', content:
             `Bases actives : ${dbs}. ${dbs.includes('CIQUAL')&&dbs.includes('OFF') ? 'Priorité CIQUAL pour aliments génériques, OFF pour produits de marque.' : ''}
-Donne les valeurs nutritionnelles pour 100g de : "${name}". Indique la source utilisée (CIQUAL, OFF ou USDA).
-JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kcal":0,"prot":0,"lip":0,"gluc":0,"sucres":0,"ag_sat":0,"fibres":0,"eau":0,"sel":0,"ca":0,"fe":0,"vitC":0,"vitD":0,"vitB12":0,"folates":0,"mg":0,"zn":0,"k":0,"omega3":0}}`
+Donne les valeurs nutritionnelles pour 100g de : "${name}". Indique la source utilisée (CIQUAL, OFF ou USDA). fvl_pct = % de fruits, légumes et légumineuses dans le produit tel que mangé (0-100 ; hors pommes de terre, fruits à coque, graines, huiles ; 100 pour un fruit ou légume nature ou un jus pur fruit). edulcorant = true seulement si une boisson contient des édulcorants non nutritifs (aspartame, acésulfame K, sucralose, stévia, saccharine ; pas les polyols). ns_cat = "boisson" (eau, lait, boisson végétale, jus, soda, thé, café), "eau" (eau nature seule), "fromage" (hors fromage blanc), "viande_rouge" (bœuf, veau, agneau, porc, charcuterie) ou "general".
+JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","fvl_pct":0,"edulcorant":false,"ns_cat":"general","per100g":{"kcal":0,"prot":0,"lip":0,"gluc":0,"sucres":0,"ag_sat":0,"fibres":0,"eau":0,"sel":0,"ca":0,"fe":0,"vitC":0,"vitD":0,"vitB12":0,"folates":0,"mg":0,"zn":0,"k":0,"omega3":0}}`
           }]
         })
       });
       const data = await response.json();
       const parsed = JSON.parse(data.content[0].text.replace(/```json|```/g,'').trim());
-      const newFood = { nom: name, ...parsed, quantite_g: 100, confiance: 3, idx };
+      const newFood = nsApply({ nom: name, ...parsed, quantite_g: 100, confiance: 3, idx });
       identifiedAliments.push(newFood);
       document.getElementById(`food-card-${idx}`).outerHTML = buildFoodCard(newFood, idx);
     } catch(e) { document.getElementById(`food-card-${idx}`).remove(); }
@@ -4456,7 +4456,7 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
   // Seuils extraits directement des formules Excel (onglet Scenario)
   // Points A = Energie(0-10) + AGS(0-10) + Sucres(0-15) + Sel(0-20)
   // Points C = FVL(0-5) + Fibres(0-5) + Proteines(0-7)
-  // Score : si A<11 → A-C ; si A≥11 → A-Fibres-Proteines (FVL exclue)
+  // Score : si A<11 → A-C ; si A≥11 → A-Fibres-FVL (protéines exclues) ; fromage → toujours A-C
   // Lettre : A(<1) B(<3) C(<11) D(<19) E(≥19)
   // =============================================
 
@@ -4480,6 +4480,17 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
   // que le cas général (identiques dans le fichier officiel).
   const NS_FAT_RATIO_AGS   = [10,16,22,28,34,40,46,52,58,64];
   const NS_FAT_ENERGIE_AGS = [120,240,360,480,600,720,840,960,1080,1200];
+
+  // Grille BOISSONS (onglet "Boissons", colonnes "Algorithme actualisé")
+  const NS_BEV_ENERGIE   = [30,90,150,210,240,270,300,330,360,390];
+  const NS_BEV_SUCRES    = [0.5,2,3.5,5,6,7,8,9,10,11];
+  const NS_BEV_PROTEINES = [1.2,1.5,1.8,2.1,2.4,2.7,3];
+  function nsFVLBoisson(pct) { return pct > 80 ? 6 : pct > 60 ? 4 : pct > 40 ? 2 : 0; }
+  // Boissons : pas de lettre A (réservée à l'eau) ; seuils sur le score ≤2 / ≤6 / ≤9
+  function nsLetterBoisson(score) {
+    if (score <= 2) return 'B'; if (score <= 6) return 'C';
+    if (score <= 9) return 'D'; return 'E';
+  }
 
   function nsPtsRatioAGS(ratioPct) {
     const r = +ratioPct || 0;
@@ -4505,13 +4516,56 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
   function nsColor(l) {
     return {A:'#038141',B:'#85BB2F',C:'#FECB02',D:'#EE8100',E:'#E63E11'}[l] ?? '#888';
   }
-  function nsCategorie(nom) {
-    if (isAlcoholicBeverage(nom)) return 'alcool';
-    if (/bœuf|boeuf|veau|agneau|mouton|steak|entrecôte/i.test(nom||'')) return 'viande_rouge';
-    if (NS_MG_RE.test((nom||'').trim())) return 'matieres_grasses';
+  // Catégories de la FAQ officielle Santé publique France (algorithme actualisé) :
+  //  - boissons : eaux, laits, yaourts à boire, boissons végétales, jus, sodas, thés/cafés…
+  //    (les soupes restent dans le cas général) ;
+  //  - fromages : fromages au sens du décret 2007-628, fondus compris, SAUF fromages blancs
+  //    et alternatives végétales ;
+  //  - viande rouge : muscles de mammifères (bœuf, veau, agneau, porc, cheval, gibier hors
+  //    lapin/lièvre), charcuterie comprise, lorsque la viande est l'ingrédient principal.
+  // La détection se fait sur le NOM de l'aliment (ancré au début pour les catégories
+  // à risque de faux positifs) ; à défaut, l'indication "ns_cat" donnée par l'IA est utilisée.
+  const NS_CATS_IA = ['boisson', 'eau', 'fromage', 'viande_rouge'];
+
+  const NS_EAU_RE = /^eaux?\b(?!\s*(?:-|\s)?(?:de[\s-]*vie|de coco|de rose|de fleur|aromatis|vitamin|sucr|gazeuse sucr))/i;
+  const NS_BOISSON_RE = new RegExp('^(?:' + [
+    'jus\\b', 'nectars?\\b', 'smoothies?\\b', 'sodas?\\b', 'limonades?\\b', 'cola\\b', 'coca\\b', 'pepsi\\b',
+    'fanta\\b', 'sprite\\b', 'orangina\\b', 'schweppes\\b', 'ice[\\s-]?tea\\b', 'th[ée]s?(?![a-zà-ÿ])', 'infusions?\\b',
+    'caf[ée]s?(?![a-zà-ÿ])', 'lait\\b', 'boissons?\\b', 'tonic\\b', 'red\\s?bull\\b', 'monster\\b', 'diabolo\\b',
+    'yaourt[s]?\\s+à\\s+boire', 'k[ée]fir\\b', 'lassi\\b', 'chocolat\\s+chaud', 'milk[\\s-]?shake',
+    'cr[eè]me\\s+à\\s+caf[ée]', 'eau\\s+de\\s+coco'
+  ].join('|') + ')', 'i');
+  const NS_BOISSON_EXCL_RE = /lait\s+(?:concentr|en poudre|de coco|ribot)|jus\s+de\s+(?:viande|cuisson|r[oô]ti)|caf[ée]\s+(?:en poudre|soluble)/i;
+
+  const NS_FROMAGE_RE = new RegExp('^(?:' + [
+    'fromages?\\b(?!\\s+(?:blanc|frais|v[ée]g[ée]tal))', 'camemberts?\\b', 'bries?\\b', 'emmental\\b', 'comt[ée](?![a-zà-ÿ])',
+    'gruy[èe]re\\b', 'roquefort\\b', 'mozzarella\\b', 'parmesan\\b', 'parmigiano\\b', 'grana\\b', 'cheddar\\b',
+    'raclette\\b', 'reblochon\\b', 'cantal\\b', 'mimolette\\b', 'maroilles\\b', 'munster\\b', 'morbier\\b',
+    'tommes?\\b', 'crottin\\b', 'feta\\b', 'halloumi\\b', 'saint[\\s-]?nectaire\\b', 'saint[\\s-]?paulin\\b',
+    'babybel\\b', 'vache qui rit\\b', 'boursin\\b', 'beaufort\\b', 'abondance\\b', 'gouda\\b', 'edam\\b',
+    'manchego\\b', 'pecorino\\b', 'burrata\\b', 'livarot\\b', 'pont[\\s-]l[\'’]?[ée]v[êe]que\\b',
+    '[ée]poisses\\b', 'chaource\\b', 'coulommiers\\b', 'langres\\b', 'fourme\\b', 'gorgonzola\\b', 'stilton\\b',
+    'bleu\\s+d[\'’e]', 'ch[èe]vre\\s+(?:frais|sec|affin|cendr|chaud)', 'b[ûu]che\\s+de\\s+ch[èe]vre',
+    'cream\\s+cheese\\b', 'philadelphia\\b', 'rocamadour\\b', 'picodon\\b'
+  ].join('|') + ')', 'i');
+
+  const NS_VIANDE_ROUGE_RE = /b[œo]e?uf|veau\b|agneau|mouton|porc\b|cochon|cheval|chevreuil|sanglier|biche\b|cerf\b|steaks?\b|entrec[ôo]te|gigot|bavette|onglet|rumsteck|faux[\s-]?filet|tournedos|filet\s+mignon|jambon|saucisson|saucisses?\b|chorizo|merguez|lardons?|bacon|pancetta|rillettes|boudin|andouill|p[âa]t[ée](?![a-zà-ÿ])|terrine|bresaola|coppa|rosette/i;
+  const NS_VIANDE_EXCL_RE = /poulet|dinde|volaille|canard|oie\b|pintade|poisson|saumon|thon\b|crevette|soja|v[ée]g[ée]tal|v[ée]gan|sans viande|tofu|seitan|lapin|li[èe]vre|p[âa]tes\b|lasagne|pizza|burger|sandwich|salade|quiche|tarte|gratin|hachis|parmentier|sauce|soupe|ravioli|cannelloni|tacos|kebab|wrap|croque|cr[êe]pe|galette|omelette|\briz\b|couscous|paella|cassoulet|pot[\s-]au[\s-]feu|bouillon/i;
+
+  function nsCategorie(nom, hint) {
+    const n = (nom || '').trim();
+    if (isAlcoholicBeverage(n)) return 'alcool';
+    if (NS_EAU_RE.test(n)) return 'eau';
+    if (NS_MG_RE.test(n)) return 'matieres_grasses';
+    if (NS_FROMAGE_RE.test(n)) return 'fromage';
+    if (NS_VIANDE_ROUGE_RE.test(n) && !NS_VIANDE_EXCL_RE.test(n)) return 'viande_rouge';
+    if (NS_BOISSON_RE.test(n) && !NS_BOISSON_EXCL_RE.test(n)) return 'boisson';
+    if (hint && NS_CATS_IA.includes(hint)) return hint;
     return 'general';
   }
 
+  // Crème (fraîche, liquide…) : classée « matières grasses » par la FAQ officielle
+  // (la crème à café est, elle, une boisson).
   // Matières grasses, fruits à coque et graines : le nom doit COMMENCER par
   // le produit lui-même. Ancrer au début évite de classer à tort des plats
   // composés ("pain au beurre", "thon à l'huile", "gâteau aux amandes",
@@ -4522,7 +4576,8 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
     'noix(?!\\s+(?:de|du|d\')\\s*(?:saint|st\\b|jambon|veau|b[oœ]uf|porc|joue))',
     'graines?\\s+(?:de|d\')\\s*(?:tournesol|courge|lin|chia|s[eé]same|pavot|chanvre)',
     'pur[eé]es?\\s+(?:de|d\')\\s*(?:amandes?|noisettes?|cacahu[eè]tes?|s[eé]same)',
-    'tahin[ie]?\\b'
+    'tahin[ie]?\\b',
+    'cr[eè]mes?\\s+(?:fra[iî]che|liquide|enti[eè]re|[ée]paisse|fleurette|double|all[ée]g[ée]e|semi[\\s-]?[ée]paisse)', 'cr[eè]mes?$'
   ].join('|') + ')', 'i');
 
   // =============================================
@@ -4553,21 +4608,60 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
     return ALCOOL_RE.test(nom);
   }
 
+  // Informations complémentaires fournies par l'IA et nécessaires au calcul :
+  // fvl_pct (% fruits, légumes, légumes secs), edulcorant (boissons), ns_cat (catégorie).
+  // Elles sont recopiées dans per100g (clés ns_*) pour être conservées avec le repas.
+  const NS_ALGO_VERSION = 'v0.10';
+  function nsMeta(a) {
+    const p = (a && a.per100g) || {};
+    const raw = a && a.fvl_pct != null ? a.fvl_pct : p.ns_fvl_pct;
+    const fvl = isNaN(+raw) || raw === '' || raw == null ? 0 : Math.min(100, Math.max(0, +raw));
+    const edu = a && a.edulcorant != null ? a.edulcorant : p.ns_edulcorant;
+    const cat = a && a.ns_cat ? a.ns_cat : p.ns_cat;
+    return { fvl, edulcorant: edu === true || edu === 'true' || edu === 'oui', cat };
+  }
+
+  // À appeler sur chaque aliment dès qu'il vient de l'IA (analyse, correction, ajout) :
+  // conserve les infos Nutri-Score dans per100g puis (re)calcule la lettre.
+  function nsApply(a) {
+    if (!a) return a;
+    if (a.per100g) {
+      const m = nsMeta(a);
+      a.per100g.ns_fvl_pct = m.fvl;
+      a.per100g.ns_edulcorant = m.edulcorant;
+      if (m.cat) a.per100g.ns_cat = m.cat;
+      a.per100g.ns_algo = NS_ALGO_VERSION;   // repère de version de calcul (recalcul ultérieur possible)
+    }
+    const ns = computeNutriscore(a);
+    a.nutriscore = ns?.lettre ?? null;
+    a.nutriscore_na = ns?.nonApplicable || false;
+    return a;
+  }
+
   /**
    * Calcule le Nutri-Score actualisé 2023 depuis un objet aliment NSR.
-   * Lit les clés per100g : kj, sucres, ag_sat, sel, na, fibres, prot
-   * Retourne { lettre, score, pointsA, pointsC } ou { lettre:null, nonApplicable:true }
-   * pour les boissons alcoolisées (hors champ officiel du Nutri-Score), ou null
-   * si les données sont insuffisantes.
+   * Lit les clés per100g : kj, sucres, ag_sat, sel, na, fibres, prot (+ ns_*)
+   * Retourne { lettre, score, pointsA, pointsC, categorie } ou
+   * { lettre:null, nonApplicable:true } pour les boissons alcoolisées (hors champ
+   * officiel), ou null si les données sont insuffisantes.
+   * Règles de score (tableur officiel, colonnes "Algorithme actualisé") :
+   *  - cas général / viande rouge : A<11 → A−C ; A≥11 → A−fibres−FVL (protéines exclues)
+   *  - fromage : toujours A−C (protéines toujours comptées)
+   *  - boissons : A−C, grille spécifique, +4 points A si édulcorant non nutritif
+   *  - viande rouge : protéines plafonnées à 2 points
    */
   function computeNutriscore(aliment) {
-    const cat = nsCategorie(aliment?.nom);
+    const meta = nsMeta(aliment);
+    const cat = nsCategorie(aliment?.nom, meta.cat);
     if (cat === 'alcool') {
       return { lettre: null, score: null, nonApplicable: true, categorie: 'alcool' };
     }
+    if (cat === 'eau') {
+      return { lettre: 'A', score: null, pointsA: null, pointsC: null, categorie: 'eau' };
+    }
     if (!aliment?.per100g) return null;
     const p   = aliment.per100g;
-    const fvl = aliment.fvl_pct || 0;
+    const fvl = meta.fvl;
 
     const kj   = +(p.kj  ?? p.energie_kj ?? (p.kcal ? Math.round(p.kcal * 4.184) : 0));
     const sucs = +(p.sucres ?? p.sugars ?? 0);
@@ -4601,6 +4695,15 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
       return { lettre: nsLetterMG(score), score, pointsA, pointsC, categorie: cat };
     }
 
+    if (cat === 'boisson') {
+      const pointsA = nsPts(sucs, NS_BEV_SUCRES) + nsPts(sel, NS_SEL)
+                    + nsPts(kj, NS_BEV_ENERGIE) + nsPts(ags, NS_AGS)
+                    + (meta.edulcorant ? 4 : 0);
+      const pointsC = nsPts(prot, NS_BEV_PROTEINES) + nsFVLBoisson(fvl) + nsPts(fib, NS_FIBRES);
+      const score = pointsA - pointsC;
+      return { lettre: nsLetterBoisson(score), score, pointsA, pointsC, categorie: cat };
+    }
+
     const pE = nsPts(kj,   NS_ENERGIE);
     const pA = nsPts(ags,  NS_AGS);
     const pS = nsPts(sucs, NS_SUCRES);
@@ -4614,8 +4717,11 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
       : nsPts(prot, NS_PROTEINES);
     const pointsC = pFVL + pF + pP;
 
-    const score = pointsA < 11 ? pointsA - pointsC : pointsA - pF - pP;
-    return { lettre: nsLetter(score), score, pointsA, pointsC };
+    let score;
+    if (cat === 'fromage')    score = pointsA - pointsC;                       // pas de règle A≥11
+    else if (pointsA < 11)    score = pointsA - pointsC;
+    else                      score = pointsA - pF - pFVL;                     // protéines exclues
+    return { lettre: nsLetter(score), score, pointsA, pointsC, categorie: cat };
   }
 
   // =============================================
@@ -5365,12 +5471,12 @@ JSON uniquement : {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kc
       var response = await nsrAnalyzeFetch({
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 500,
-          messages: [{ role: 'user', content: 'Bases : ' + dbs + '. Valeurs pour 100g de "' + name + '". JSON: {"db_nom":"...","source":"CIQUAL","emoji":"...","per100g":{"kcal":0,"prot":0,"lip":0,"gluc":0,"sucres":0,"ag_sat":0,"fibres":0,"eau":0,"sel":0,"ca":0,"fe":0,"vitC":0,"vitD":0,"vitB12":0,"folates":0,"mg":0,"zn":0,"k":0,"omega3":0}}' }]
+          messages: [{ role: 'user', content: 'Bases : ' + dbs + '. Valeurs pour 100g de "' + name + '". fvl_pct = % de fruits, légumes et légumineuses dans le produit tel que mangé (0-100 ; hors pommes de terre, fruits à coque, graines, huiles ; 100 pour un fruit ou légume nature ou un jus pur fruit). edulcorant = true seulement si une boisson contient des édulcorants non nutritifs (aspartame, acésulfame K, sucralose, stévia, saccharine ; pas les polyols). ns_cat = "boisson" (eau, lait, boisson végétale, jus, soda, thé, café), "eau" (eau nature seule), "fromage" (hors fromage blanc), "viande_rouge" (bœuf, veau, agneau, porc, charcuterie) ou "general". JSON: {"db_nom":"...","source":"CIQUAL","emoji":"...","fvl_pct":0,"edulcorant":false,"ns_cat":"general","per100g":{"kcal":0,"prot":0,"lip":0,"gluc":0,"sucres":0,"ag_sat":0,"fibres":0,"eau":0,"sel":0,"ca":0,"fe":0,"vitC":0,"vitD":0,"vitB12":0,"folates":0,"mg":0,"zn":0,"k":0,"omega3":0}}' }]
         })
       });
       var data = await response.json();
       var parsed = JSON.parse(data.content[0].text.replace(/```json|```/g,'').trim());
-      var newFood = Object.assign({ nom:name, quantite_g:100, confiance:3, idx:idx }, parsed);
+      var newFood = nsApply(Object.assign({ nom:name, quantite_g:100, confiance:3, idx:idx }, parsed));
       editMealFoods.push(newFood);
       identifiedAliments = editMealFoods.map(function(f){ return Object.assign({},f); });
       document.getElementById('food-card-' + idx).outerHTML = buildFoodCard(newFood, idx);
