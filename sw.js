@@ -1,4 +1,4 @@
-const CACHE = 'nsr-v0111';
+const CACHE = 'nsr-v0112';
 const ASSETS = ['/', '/index.html', '/manifest.json', '/icon-192.png', '/icon-512.png'];
 
 self.addEventListener('install', e => {

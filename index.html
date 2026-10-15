@@ -1198,15 +1198,7 @@
   <!-- ============ SCREEN: SPLASH ============ -->
   <div class="screen active" id="screen-splash">
     <div class="splash-screen">
-      <svg width="72" height="72" viewBox="0 0 58 58" xmlns="http://www.w3.org/2000/svg" style="margin-bottom:16px">
-        <rect width="58" height="58" rx="15" fill="rgba(255,255,255,0.15)"/>
-        <rect x="1" y="1" width="56" height="56" rx="14" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="1"/>
-        <text x="7" y="37" font-family="Georgia,serif" font-size="19" font-weight="700" fill="white">N</text>
-        <text x="20" y="38" font-family="Georgia,serif" font-size="22" font-style="italic" font-weight="700" fill="#F0B94A">S</text>
-        <text x="35" y="37" font-family="Georgia,serif" font-size="19" font-weight="700" fill="white">R</text>
-        <path d="M6 44 L14 44 L17 40 L22 47 L25 41 L30 41 L36 41 L52 41" stroke="#F0B94A" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="0.75"/>
-        <circle cx="22" cy="47" r="2" fill="#F0B94A" opacity="0.9"/>
-      </svg>
+      <img src="/logo.png" width="96" height="96" alt="NutriScanResearch" style="margin-bottom:16px;display:block">
       <div style="font-family:'DM Serif Display',serif;font-size:28px;font-style:italic">
         NutriScan<span style="font-style:normal;color:#F0B94A">Research</span>
       </div>
@@ -2168,7 +2160,7 @@
           <div class="settings-row-left">
             <div class="settings-icon">ℹ️</div>
             <div>
-              <div class="settings-label">NutriScanResearch v0.11.1</div>
+              <div class="settings-label">NutriScanResearch v0.11.2</div>
               <div class="settings-value">Prototype de recherche — CHU Poitiers</div>
             </div>
           </div>
@@ -3689,6 +3681,9 @@
   // À compléter à chaque nouvelle version (entrée la plus récente en premier)
   // =============================================
   const CHANGELOG = [
+    { version: '0.11.2', changes: [
+      'Nouveau logo (écran d\'accueil et icône de l\'application)'
+    ]},
     { version: '0.11.1', changes: [
       'Interface investigateur en bleu foncé (l\'interface patient reste en vert-bleu) pour distinguer les deux espaces d\'un coup d\'œil',
       'Le bouton « Supprimer » (suppression du compte) n\'est plus dans la barre du bas : il se trouve dans Paramètres › Zone sensible, avec un message détaillant les conséquences et une confirmation par saisie du mot SUPPRIMER'
