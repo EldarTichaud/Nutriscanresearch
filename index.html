@@ -26,6 +26,15 @@
     --radius-sm: 10px;
   }
 
+  /* Thème investigateur : bleu foncé (le patient garde le vert-bleu par défaut) */
+  body.theme-inv {
+    --teal: #1B3A6B;
+    --teal-mid: #2F5C9E;
+    --teal-light: #E6ECF6;
+    --bg: #EDF1F8;
+    --border: #D5DCEA;
+  }
+
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
   body {
@@ -1538,7 +1547,6 @@
       <div class="nav-item" onclick="goTo('screen-settings');loadSettingsNotifications()"><div class="nav-icon">⚙️</div>Paramètres</div>
       <div class="nav-item nav-contact-btn" onclick="showContactInfo()" style="display:none"><div class="nav-icon">✉️</div>Contact</div>
       <div class="nav-item" onclick="logout()"><div class="nav-icon">🚪</div>Déconnexion</div>
-      <div class="nav-item" onclick="deleteAccount()" style="color:#e53e3e"><div class="nav-icon">🗑️</div>Supprimer</div>
     </div>
   </div>
 
@@ -1669,7 +1677,6 @@
       <div class="nav-item" onclick="goTo('screen-home')"><div class="nav-icon">🏠</div>Accueil</div>
       <div class="nav-item" onclick="goTo('screen-settings');loadSettingsNotifications()"><div class="nav-icon">⚙️</div>Paramètres</div>
       <div class="nav-item" onclick="logout()"><div class="nav-icon">🚪</div>Déconnexion</div>
-      <div class="nav-item" onclick="deleteAccount()" style="color:#e53e3e"><div class="nav-icon">🗑️</div>Supprimer</div>
     </div>
   </div>
 
@@ -1787,7 +1794,6 @@
       <div class="nav-item active" onclick="goTo('screen-home')"><div class="nav-icon">🏠</div>Accueil</div>
       <div class="nav-item" onclick="goTo('screen-settings');loadSettingsNotifications()"><div class="nav-icon">⚙️</div>Paramètres</div>
       <div class="nav-item" onclick="logout()"><div class="nav-icon">🚪</div>Déconnexion</div>
-      <div class="nav-item" onclick="deleteAccount()" style="color:#e53e3e"><div class="nav-icon">🗑️</div>Supprimer</div>
     </div>
   </div>
 
@@ -2063,7 +2069,7 @@
   <div class="screen" id="screen-settings">
     <div class="header">
       <div class="header-row">
-        <div class="back-btn" onclick="goTo('screen-home')">←</div>
+        <div class="back-btn" onclick="goHome()">←</div>
         <h2>Paramètres</h2>
       </div>
     </div>
@@ -2143,12 +2149,26 @@
       </div>
 
       <div class="settings-section">
+        <div class="section-label" style="color:var(--red)">Zone sensible</div>
+        <div class="settings-row" onclick="deleteAccount()" style="cursor:pointer;border:1px solid var(--red);background:var(--red-light)">
+          <div class="settings-row-left">
+            <div class="settings-icon" style="background:#fff">🗑️</div>
+            <div>
+              <div class="settings-label" style="color:var(--red)">Supprimer mon compte</div>
+              <div class="settings-value">Action définitive et irréversible</div>
+            </div>
+          </div>
+          <span style="color:var(--red)">›</span>
+        </div>
+      </div>
+
+      <div class="settings-section">
         <div class="section-label">À propos</div>
         <div class="settings-row">
           <div class="settings-row-left">
             <div class="settings-icon">ℹ️</div>
             <div>
-              <div class="settings-label">NutriScanResearch v0.11.0</div>
+              <div class="settings-label">NutriScanResearch v0.11.1</div>
               <div class="settings-value">Prototype de recherche — CHU Poitiers</div>
             </div>
           </div>
@@ -2167,7 +2187,7 @@
 
     </div>
     <div class="bottom-nav">
-      <div class="nav-item" onclick="goTo('screen-home')">
+      <div class="nav-item" onclick="goHome()">
         <div class="nav-icon">🏠</div>
         Accueil
       </div>
@@ -2211,7 +2231,6 @@
       <div class="nav-item" onclick="goTo('screen-settings');loadSettingsNotifications()"><div class="nav-icon">⚙️</div>Paramètres</div>
       <div class="nav-item nav-contact-btn" onclick="showContactInfo()" style="display:none"><div class="nav-icon">✉️</div>Contact</div>
       <div class="nav-item" onclick="logout()"><div class="nav-icon">🚪</div>Déconnexion</div>
-      <div class="nav-item" onclick="deleteAccount()" style="color:#e53e3e"><div class="nav-icon">🗑️</div>Supprimer</div>
     </div>
   </div>
 
@@ -2235,7 +2254,6 @@
       <div class="nav-item" onclick="goTo('screen-settings');loadSettingsNotifications()"><div class="nav-icon">⚙️</div>Paramètres</div>
       <div class="nav-item nav-contact-btn" onclick="showContactInfo()" style="display:none"><div class="nav-icon">✉️</div>Contact</div>
       <div class="nav-item" onclick="logout()"><div class="nav-icon">🚪</div>Déconnexion</div>
-      <div class="nav-item" onclick="deleteAccount()" style="color:#e53e3e"><div class="nav-icon">🗑️</div>Supprimer</div>
     </div>
   </div>
 
@@ -2456,7 +2474,8 @@
 
   async function routeByRole() {
     try {
-      if (!currentProfile) { goTo('screen-splash'); return; }
+      if (!currentProfile) { applyRoleTheme(null); goTo('screen-splash'); return; }
+      applyRoleTheme(currentProfile.role);
       if (currentProfile.role === 'investigateur') {
         const name = [currentProfile.prenom, currentProfile.nom].filter(Boolean).join(' ') || currentUser.email;
         document.getElementById('investigator-name').textContent = name;
@@ -2651,21 +2670,68 @@
   async function logout() {
     await sb.auth.signOut();
     currentUser = null; currentProfile = null; currentContactEmail = null;
+    applyRoleTheme(null);
     goTo('screen-splash');
   }
 
-  async function deleteAccount() {
-    const confirmed = confirm('Supprimer définitivement ce compte ?\n\nToutes les données seront effacées et cette action est irréversible.');
-    if (!confirmed) return;
+  // Accueil selon le rôle (les Paramètres sont partagés entre patient et investigateur)
+  function goHome() {
+    goTo(currentProfile && currentProfile.role === 'patient' ? 'screen-patient-home' : 'screen-home');
+  }
+
+  function deleteAccount() {
+    const isInv = currentProfile && currentProfile.role === 'investigateur';
+    const consequences = isInv
+      ? ['Votre compte investigateur sera supprimé et vous ne pourrez plus vous connecter.',
+         'Les données qui lui sont rattachées seront effacées.',
+         'Les patients de vos projets perdront leur accompagnement par ce compte.']
+      : ['Votre compte sera supprimé et vous ne pourrez plus vous connecter.',
+         'Tous vos repas, photos et données saisies seront effacés des serveurs de l\'étude.',
+         'Vous sortirez de l\'étude : l\'équipe de recherche n\'aura plus accès à vos données.'];
+    const old = document.getElementById('delete-account-modal');
+    if (old) old.remove();
+    const m = document.createElement('div');
+    m.id = 'delete-account-modal';
+    m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+    m.innerHTML = '<div style="background:#fff;border-radius:16px;max-width:380px;width:100%;padding:22px;box-shadow:0 8px 32px rgba(0,0,0,.3);max-height:90vh;overflow-y:auto">'
+      + '<div style="font-size:32px;text-align:center">⚠️</div>'
+      + '<div style="font-family:\'DM Serif Display\',serif;font-size:20px;text-align:center;margin:6px 0 12px;color:var(--red)">Supprimer définitivement votre compte ?</div>'
+      + '<ul style="font-size:13.5px;line-height:1.5;padding-left:18px;color:var(--text);margin-bottom:12px">' + consequences.map(c => '<li style="margin-bottom:6px">' + c + '</li>').join('') + '</ul>'
+      + '<div style="font-size:13px;font-weight:700;color:var(--red);margin-bottom:12px">Cette action est irréversible : aucune restauration n\'est possible.</div>'
+      + '<label style="font-size:12px;color:var(--text-mid)">Pour confirmer, tapez <b>SUPPRIMER</b> :</label>'
+      + '<input id="delete-account-input" type="text" autocomplete="off" autocapitalize="characters" style="width:100%;margin:6px 0 14px;padding:10px;border:1px solid var(--border);border-radius:10px;font-size:15px" oninput="document.getElementById(\'delete-account-ok\').disabled = this.value.trim().toUpperCase() !== \'SUPPRIMER\'"/>'
+      + '<div style="display:flex;gap:8px">'
+      + '<button class="btn btn-secondary" style="flex:1" onclick="document.getElementById(\'delete-account-modal\').remove()">Annuler</button>'
+      + '<button id="delete-account-ok" class="btn" disabled style="flex:1;background:var(--red);color:#fff;border:none;opacity:1" onclick="confirmDeleteAccount()">Supprimer</button>'
+      + '</div></div>';
+    document.body.appendChild(m);
+    const ok = document.getElementById('delete-account-ok');
+    ok.style.cssText += ';opacity:.45';
+    document.getElementById('delete-account-input').addEventListener('input', function () { ok.style.opacity = ok.disabled ? '.45' : '1'; });
+  }
+
+  async function confirmDeleteAccount() {
+    const input = document.getElementById('delete-account-input');
+    if (!input || input.value.trim().toUpperCase() !== 'SUPPRIMER') return;
     try {
       const { error } = await sb.rpc('delete_own_account');
       if (error) throw error;
+      const m = document.getElementById('delete-account-modal'); if (m) m.remove();
+      try { await sb.auth.signOut(); } catch(_) {}
       currentUser = null; currentProfile = null; currentContactEmail = null;
+      applyRoleTheme(null);
       showToast('Compte supprimé', 'success');
       goTo('screen-splash');
     } catch(e) {
       alert('Erreur lors de la suppression : ' + e.message);
     }
+  }
+
+  // Thème visuel selon le rôle : vert-bleu (patient, par défaut) / bleu foncé (investigateur)
+  function applyRoleTheme(role) {
+    document.body.classList.toggle('theme-inv', role === 'investigateur');
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', role === 'investigateur' ? '#1B3A6B' : '#1A5C6B');
   }
 
   function loadDemo() { goTo('screen-login'); }
@@ -3623,6 +3689,10 @@
   // À compléter à chaque nouvelle version (entrée la plus récente en premier)
   // =============================================
   const CHANGELOG = [
+    { version: '0.11.1', changes: [
+      'Interface investigateur en bleu foncé (l\'interface patient reste en vert-bleu) pour distinguer les deux espaces d\'un coup d\'œil',
+      'Le bouton « Supprimer » (suppression du compte) n\'est plus dans la barre du bas : il se trouve dans Paramètres › Zone sensible, avec un message détaillant les conséquences et une confirmation par saisie du mot SUPPRIMER'
+    ]},
     { version: '0.11.0', changes: [
       'Les valeurs nutritionnelles viennent désormais réellement de la table CIQUAL 2025 (ANSES, 3 484 aliments) : l\'IA reconnaît l\'aliment et estime la quantité, puis l\'appli recherche l\'aliment dans la table et en reprend les valeurs',
       'Sur chaque aliment, le bouton « Entrée CIQUAL » permet de choisir une autre entrée de la table, de chercher librement, ou de revenir à l\'estimation IA',
