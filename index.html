@@ -1866,7 +1866,7 @@
         <div class="toggle on" id="toggle-ciqual"></div>
       </div>
       <div class="db-option" id="db-off" onclick="toggleDb('off')" data-active="true">
-        <div class="db-option-left"><div class="db-badge off">OFF</div><div><div class="db-option-name">Open Food Facts</div><div class="db-option-sub">Produits de marque · pas encore branchée</div></div></div>
+        <div class="db-option-left"><div class="db-badge off">OFF</div><div><div class="db-option-name">Open Food Facts</div><div class="db-option-sub">Produits de marque · codes-barres</div></div></div>
         <div class="toggle on" id="toggle-off"></div>
       </div>
       <div class="db-option" id="db-usda" onclick="toggleDb('usda')" data-active="false">
@@ -2160,7 +2160,7 @@
           <div class="settings-row-left">
             <div class="settings-icon">ℹ️</div>
             <div>
-              <div class="settings-label">NutriScanResearch v0.11.2</div>
+              <div class="settings-label">NutriScanResearch v0.12.0</div>
               <div class="settings-value">Prototype de recherche — CHU Poitiers</div>
             </div>
           </div>
@@ -2494,6 +2494,7 @@
             document.getElementById('patient-project-tag').textContent = 'PROJET ' + (proj.name || '').toUpperCase();
             currentShowBilan = !!proj.config?.showBilan;
             currentTrackedNutrients = Array.isArray(proj.config?.nutrients) ? proj.config.nutrients : [];
+            currentDatabases = { ciqual: proj.config?.databases?.ciqual !== false, off: proj.config?.databases?.off !== false };
             if (currentShowBilan) document.getElementById('patient-bilan').style.display = 'block';
             if (proj.config?.contact_email) {
               currentContactEmail = proj.config.contact_email;
@@ -2740,6 +2741,7 @@
   let currentProject = null;
   let currentShowBilan = false;
   let currentTrackedNutrients = [];
+  let currentDatabases = { ciqual: true, off: true };   // bases actives du projet (patient)
 
   async function loadProjects() {
     const { data: projects } = await sb.from('projects')
@@ -3596,7 +3598,7 @@
       if (data.error) throw new Error(data.error.message);
       const clean = data.content[0].text.replace(/```json|```/g, '').trim();
       const parsed = JSON.parse(clean);
-      identifiedAliments = await Promise.all(parsed.aliments.map((a, i) => enrichWithCiqual({ ...a, idx: i,
+      identifiedAliments = await Promise.all(parsed.aliments.map((a, i) => enrichFood({ ...a, idx: i,
         nova: correctNova(a.nom, a.nova)
       })));
       document.getElementById('analysis-loading').style.display = 'none';
@@ -3681,6 +3683,12 @@
   // À compléter à chaque nouvelle version (entrée la plus récente en premier)
   // =============================================
   const CHANGELOG = [
+    { version: '0.12.0', changes: [
+      'Open Food Facts branché : pour un produit de marque (nom + marque reconnus par l\'IA, ou code-barres lisible sur l\'emballage), l\'appli interroge Open Food Facts et reprend les valeurs de l\'étiquette ainsi que la classification NOVA',
+      'Le bouton « Changer la source » permet de chercher un produit par nom ou code-barres dans Open Food Facts, ou une entrée dans CIQUAL',
+      'La date de copie des valeurs Open Food Facts est conservée avec le repas (base collaborative qui évolue)',
+      'Si le produit n\'est pas retrouvé avec certitude, l\'appli retombe sur CIQUAL puis sur l\'estimation IA, et propose les produits Open Food Facts trouvés'
+    ]},
     { version: '0.11.2', changes: [
       'Nouveau logo (écran d\'accueil et icône de l\'application)'
     ]},
@@ -4113,6 +4121,8 @@ Réponds UNIQUEMENT en JSON valide, sans markdown :
   "aliments": [{
     "nom": "nom commun français",
     "ciqual_nom": "intitulé le plus probable dans la table CIQUAL, ex : Pomme, crue",
+    "marque": "marque commerciale si c'est un produit industriel identifiable (ex : Danone, Bonne Maman, Lu), sinon null",
+    "code_barres": "code-barres (EAN) s'il est lisible sur l'emballage visible, sinon null",
     "emoji": "emoji",
     "fvl_pct": 0,
     "edulcorant": false,
@@ -4124,7 +4134,7 @@ Réponds UNIQUEMENT en JSON valide, sans markdown :
   }]
 }
 
-Règles : confiance 1-5, quantite_g estimation visuelle (c'est ta contribution principale), ciqual_nom = intitulé tel qu'il figure dans la table CIQUAL (nom de l'aliment, virgule, état : ex « Pain, baguette », « Poulet, filet, cuit », « Pâtes alimentaires cuites, standard »). Les valeurs per100g que tu fournis ne servent que de secours si l'aliment est introuvable dans CIQUAL ; toutes obligatoires (0 si absent). fvl_pct = % de fruits, légumes et légumineuses dans le produit tel que mangé (0-100 ; hors pommes de terre, fruits à coque, graines, huiles ; 100 pour un fruit ou légume nature ou un jus pur fruit). edulcorant = true seulement si une boisson contient des édulcorants non nutritifs (aspartame, acésulfame K, sucralose, stévia, saccharine ; pas les polyols). ns_cat = "boisson" (eau, lait, boisson végétale, jus, soda, thé, café), "eau" (eau nature seule), "fromage" (hors fromage blanc), "viande_rouge" (bœuf, veau, agneau, porc, charcuterie) ou "general".`;
+Règles : confiance 1-5, quantite_g estimation visuelle (c'est ta contribution principale), marque = marque commerciale du produit industriel s'il est identifiable (sinon null) ; code_barres = EAN s'il est lisible (sinon null) ; ciqual_nom = intitulé tel qu'il figure dans la table CIQUAL (nom de l'aliment, virgule, état : ex « Pain, baguette », « Poulet, filet, cuit », « Pâtes alimentaires cuites, standard »). Les valeurs per100g que tu fournis ne servent que de secours si l'aliment est introuvable dans CIQUAL ; toutes obligatoires (0 si absent). fvl_pct = % de fruits, légumes et légumineuses dans le produit tel que mangé (0-100 ; hors pommes de terre, fruits à coque, graines, huiles ; 100 pour un fruit ou légume nature ou un jus pur fruit). edulcorant = true seulement si une boisson contient des édulcorants non nutritifs (aspartame, acésulfame K, sucralose, stévia, saccharine ; pas les polyols). ns_cat = "boisson" (eau, lait, boisson végétale, jus, soda, thé, café), "eau" (eau nature seule), "fromage" (hors fromage blanc), "viande_rouge" (bœuf, veau, agneau, porc, charcuterie) ou "general".`;
   }
 
 
@@ -4214,7 +4224,7 @@ Règles : confiance 1-5, quantite_g estimation visuelle (c'est ta contribution p
       const clean = text.replace(/```json|```/g, '').trim();
       const parsed = JSON.parse(clean);
 
-      identifiedAliments = await Promise.all(parsed.aliments.map((a, i) => enrichWithCiqual({ ...a, idx: i,
+      identifiedAliments = await Promise.all(parsed.aliments.map((a, i) => enrichFood({ ...a, idx: i,
         nova: correctNova(a.nom, a.nova)
       })));
 
@@ -4257,7 +4267,8 @@ Règles : confiance 1-5, quantite_g estimation visuelle (c'est ta contribution p
     const p = (a && a.per100g) || {};
     if (source === 'CIQUAL' && p.ciqual_code)
       return `<span class="src-badge-ciqual" title="Valeurs issues de la table Ciqual (ANSES), code ${ciqEsc(p.ciqual_code)}">✓ ${ciqEsc(p.ciqual_version || 'CIQUAL 2025')}</span>`;
-    if (source === 'OFF')  return `<span class="src-badge-off">✓ Open Food Facts</span>`;
+    if (source === 'OFF' && p.off_code)
+      return `<span class="src-badge-off" title="Open Food Facts, code-barres ${ciqEsc(p.off_code)} · valeurs copiées le ${ciqEsc(p.off_date || '')} · données collaboratives, à vérifier">✓ Open Food Facts</span>`;
     if (source === 'USDA') return `<span class="src-badge-usda">✓ USDA</span>`;
     // « Estimation IA », ou anciens repas dont la mention « CIQUAL » avait été écrite par l'IA
     return `<span title="Valeurs estimées par l'IA (aliment non retrouvé dans une table de composition)" style="font-size:10px;background:#FFF3E0;color:#B26A00;padding:2px 8px;border-radius:10px;font-weight:700;">⚠ Estimation IA</span>`;
@@ -4283,13 +4294,13 @@ Règles : confiance 1-5, quantite_g estimation visuelle (c'est ta contribution p
     // Nutriscore badge (calculé depuis per100g — algo actualisé 2023)
     const nsColors = { A:'#038141', B:'#85BB2F', C:'#FECB02', D:'#EE8100', E:'#E63E11' };
     const nsTextColors = { A:'white', B:'white', C:'#1C1C1C', D:'white', E:'white' };
-    const isCiq = !!(a.per100g && a.per100g.ns_cat_src === 'ciqual');
+    const isCiq = !!(a.per100g && (a.per100g.ns_cat_src === 'ciqual' || (a.per100g.ns_cat_src === 'off' && a.per100g.ns_cat)));
     const nsBadge = (a.nutriscore_na || (!isCiq && isAlcoholicBeverage(a.nom)))
       ? `<span title="Nutri-Score non applicable : boisson alcoolisée (>1,2% vol.), exclue du champ d'application officiel du Nutri-Score" style="font-size:10px;background:#e8e8e4;color:#888;padding:2px 8px;border-radius:10px;font-weight:700;">Nutri-Score N/A</span>`
       : a.nutriscore_incomplet
-      ? `<span title="Nutri-Score non calculable : donnée absente de la table CIQUAL pour cette entrée (${(a.per100g.ns_manquants || []).join(', ')}). Choisissez une autre entrée CIQUAL si possible." style="font-size:10px;background:#FFF3E0;color:#B26A00;padding:2px 8px;border-radius:10px;font-weight:700;">Nutri-Score n/c</span>`
+      ? `<span title="Nutri-Score non calculable : donnée absente de la table CIQUAL pour cette entrée (${(a.per100g.ns_manquants || []).join(', ')}). Choisissez une autre entrée si possible." style="font-size:10px;background:#FFF3E0;color:#B26A00;padding:2px 8px;border-radius:10px;font-weight:700;">Nutri-Score n/c</span>`
       : a.nutriscore
-      ? `<span title="Nutri-Score calculé localement (algo actualisé 2023) ${isCiq ? '· Valeurs CIQUAL 2025' : "· Valeurs estimées par l'IA"}${isCiq && a.per100g.ns_manquants ? ' · absent de CIQUAL, compté 0 : ' + a.per100g.ns_manquants.join(', ') : ''}${isCiq && a.per100g.ns_energie_calculee ? ' · énergie calculée à partir des macronutriments' : ''}" style="font-size:10px;background:${nsColors[a.nutriscore]||'#aaa'};color:${nsTextColors[a.nutriscore]||'white'};padding:2px 8px;border-radius:10px;font-weight:700;">Nutri-Score ${a.nutriscore}</span>`
+      ? `<span title="Nutri-Score calculé localement (algo actualisé 2023) ${isCiq ? (a.per100g.ns_cat_src === 'off' ? '· Valeurs Open Food Facts' : '· Valeurs CIQUAL 2025') : "· Valeurs estimées par l'IA"}${isCiq && a.per100g.ns_manquants ? ' · absent de la base, compté 0 : ' + a.per100g.ns_manquants.join(', ') : ''}${isCiq && a.per100g.ns_energie_calculee ? ' · énergie calculée à partir des macronutriments' : ''}" style="font-size:10px;background:${nsColors[a.nutriscore]||'#aaa'};color:${nsTextColors[a.nutriscore]||'white'};padding:2px 8px;border-radius:10px;font-weight:700;">Nutri-Score ${a.nutriscore}</span>`
       : '';
 
     // Construire les micronutriments sélectionnés
@@ -4308,7 +4319,7 @@ Règles : confiance 1-5, quantite_g estimation visuelle (c'est ta contribution p
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
             <div class="food-name">${a.nom}</div>
             ${sourceBadge(a.source, a)}
-            ${novaBadge}${nsBadge}${(isCiq && a.per100g.kj == null && a.per100g.kcal == null) ? '<span title="Énergie non renseignée dans CIQUAL pour cette entrée : choisissez-en une autre" style="font-size:10px;background:#FFEBEE;color:#B71C1C;padding:2px 8px;border-radius:10px;font-weight:700;">⚠ énergie absente</span>' : ''}
+            ${novaBadge}${nsBadge}${(isCiq && a.per100g.kj == null && a.per100g.kcal == null) ? '<span title="Énergie non renseignée dans la base pour cette entrée : choisissez-en une autre" style="font-size:10px;background:#FFEBEE;color:#B71C1C;padding:2px 8px;border-radius:10px;font-weight:700;">⚠ énergie absente</span>' : ''}
           </div>
           <div style="font-size:11px;color:var(--text-light);margin-top:2px;font-style:italic">${a.db_nom||''}</div>
           <div class="food-confidence" style="margin-top:4px">Confiance identification :</div>
@@ -4337,7 +4348,7 @@ Règles : confiance 1-5, quantite_g estimation visuelle (c'est ta contribution p
 
       <div style="margin-top:10px;display:flex;gap:8px;">
         <button class="btn btn-secondary btn-sm" onclick="showCorrection('corr-${i}')">✏️ Corriger</button>
-        <button class="btn btn-secondary btn-sm" onclick="showCorrection('ciq-${i}')" title="Choisir une autre entrée de la table CIQUAL">🔎 Entrée CIQUAL</button>
+        <button class="btn btn-secondary btn-sm" onclick="showCorrection('ciq-${i}')" title="Choisir une autre entrée CIQUAL ou un produit Open Food Facts">🔎 Changer la source</button>
         <button class="btn btn-sm" style="background:var(--red-light);color:var(--red);border:none;" onclick="removeFood(${i})">🗑 Supprimer</button>
       </div>
       ${ciqPanelHtml(a, i)}
@@ -4395,14 +4406,14 @@ Règles : confiance 1-5, quantite_g estimation visuelle (c'est ta contribution p
         body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 500,
           messages: [{ role: 'user', content:
             `Bases actives : ${dbs}. ${dbs.includes('CIQUAL')&&dbs.includes('OFF') ? 'Priorité CIQUAL pour aliments génériques, OFF pour produits de marque.' : ''}
-Donne les valeurs nutritionnelles pour 100g de : "${newName}". Donne aussi ciqual_nom = intitulé le plus probable dans la table CIQUAL (ex : "Pomme, crue"). fvl_pct = % de fruits, légumes et légumineuses dans le produit tel que mangé (0-100 ; hors pommes de terre, fruits à coque, graines, huiles ; 100 pour un fruit ou légume nature ou un jus pur fruit). edulcorant = true seulement si une boisson contient des édulcorants non nutritifs (aspartame, acésulfame K, sucralose, stévia, saccharine ; pas les polyols). ns_cat = "boisson" (eau, lait, boisson végétale, jus, soda, thé, café), "eau" (eau nature seule), "fromage" (hors fromage blanc), "viande_rouge" (bœuf, veau, agneau, porc, charcuterie) ou "general".
-JSON uniquement : {"ciqual_nom":"...","emoji":"...","fvl_pct":0,"edulcorant":false,"ns_cat":"general","per100g":{"kcal":0,"prot":0,"lip":0,"gluc":0,"sucres":0,"ag_sat":0,"fibres":0,"eau":0,"sel":0,"ca":0,"fe":0,"vitC":0,"vitD":0,"vitB12":0,"folates":0,"mg":0,"zn":0,"k":0,"omega3":0}}`
+Donne les valeurs nutritionnelles pour 100g de : "${newName}". Donne aussi ciqual_nom = intitulé le plus probable dans la table CIQUAL (ex : "Pomme, crue") et marque = marque commerciale si c\'est un produit industriel identifiable, sinon null. fvl_pct = % de fruits, légumes et légumineuses dans le produit tel que mangé (0-100 ; hors pommes de terre, fruits à coque, graines, huiles ; 100 pour un fruit ou légume nature ou un jus pur fruit). edulcorant = true seulement si une boisson contient des édulcorants non nutritifs (aspartame, acésulfame K, sucralose, stévia, saccharine ; pas les polyols). ns_cat = "boisson" (eau, lait, boisson végétale, jus, soda, thé, café), "eau" (eau nature seule), "fromage" (hors fromage blanc), "viande_rouge" (bœuf, veau, agneau, porc, charcuterie) ou "general".
+JSON uniquement : {"ciqual_nom":"...","marque":null,"emoji":"...","fvl_pct":0,"edulcorant":false,"ns_cat":"general","per100g":{"kcal":0,"prot":0,"lip":0,"gluc":0,"sucres":0,"ag_sat":0,"fibres":0,"eau":0,"sel":0,"ca":0,"fe":0,"vitC":0,"vitD":0,"vitB12":0,"folates":0,"mg":0,"zn":0,"k":0,"omega3":0}}`
           }]
         })
       });
       const data = await response.json();
       const parsed = JSON.parse(data.content[0].text.replace(/```json|```/g,'').trim());
-      identifiedAliments[i] = await enrichWithCiqual({ ...identifiedAliments[i], nom: newName, ...parsed, quantite_g: identifiedAliments[i]?.quantite_g || 100, confiance: 3, idx: i });
+      identifiedAliments[i] = await enrichFood({ ...identifiedAliments[i], nom: newName, ...parsed, quantite_g: identifiedAliments[i]?.quantite_g || 100, confiance: 3, idx: i });
       document.getElementById(`food-card-${i}`).outerHTML = buildFoodCard(identifiedAliments[i], i);
     } catch(e) {
       document.getElementById(`food-card-${i}`).outerHTML = buildFoodCard({ ...identifiedAliments[i], nom: newName }, i);
@@ -4429,14 +4440,14 @@ JSON uniquement : {"ciqual_nom":"...","emoji":"...","fvl_pct":0,"edulcorant":fal
         body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 500,
           messages: [{ role: 'user', content:
             `Bases actives : ${dbs}. ${dbs.includes('CIQUAL')&&dbs.includes('OFF') ? 'Priorité CIQUAL pour aliments génériques, OFF pour produits de marque.' : ''}
-Donne les valeurs nutritionnelles pour 100g de : "${name}". Donne aussi ciqual_nom = intitulé le plus probable dans la table CIQUAL (ex : "Pomme, crue"). fvl_pct = % de fruits, légumes et légumineuses dans le produit tel que mangé (0-100 ; hors pommes de terre, fruits à coque, graines, huiles ; 100 pour un fruit ou légume nature ou un jus pur fruit). edulcorant = true seulement si une boisson contient des édulcorants non nutritifs (aspartame, acésulfame K, sucralose, stévia, saccharine ; pas les polyols). ns_cat = "boisson" (eau, lait, boisson végétale, jus, soda, thé, café), "eau" (eau nature seule), "fromage" (hors fromage blanc), "viande_rouge" (bœuf, veau, agneau, porc, charcuterie) ou "general".
-JSON uniquement : {"ciqual_nom":"...","emoji":"...","fvl_pct":0,"edulcorant":false,"ns_cat":"general","per100g":{"kcal":0,"prot":0,"lip":0,"gluc":0,"sucres":0,"ag_sat":0,"fibres":0,"eau":0,"sel":0,"ca":0,"fe":0,"vitC":0,"vitD":0,"vitB12":0,"folates":0,"mg":0,"zn":0,"k":0,"omega3":0}}`
+Donne les valeurs nutritionnelles pour 100g de : "${name}". Donne aussi ciqual_nom = intitulé le plus probable dans la table CIQUAL (ex : "Pomme, crue") et marque = marque commerciale si c\'est un produit industriel identifiable, sinon null. fvl_pct = % de fruits, légumes et légumineuses dans le produit tel que mangé (0-100 ; hors pommes de terre, fruits à coque, graines, huiles ; 100 pour un fruit ou légume nature ou un jus pur fruit). edulcorant = true seulement si une boisson contient des édulcorants non nutritifs (aspartame, acésulfame K, sucralose, stévia, saccharine ; pas les polyols). ns_cat = "boisson" (eau, lait, boisson végétale, jus, soda, thé, café), "eau" (eau nature seule), "fromage" (hors fromage blanc), "viande_rouge" (bœuf, veau, agneau, porc, charcuterie) ou "general".
+JSON uniquement : {"ciqual_nom":"...","marque":null,"emoji":"...","fvl_pct":0,"edulcorant":false,"ns_cat":"general","per100g":{"kcal":0,"prot":0,"lip":0,"gluc":0,"sucres":0,"ag_sat":0,"fibres":0,"eau":0,"sel":0,"ca":0,"fe":0,"vitC":0,"vitD":0,"vitB12":0,"folates":0,"mg":0,"zn":0,"k":0,"omega3":0}}`
           }]
         })
       });
       const data = await response.json();
       const parsed = JSON.parse(data.content[0].text.replace(/```json|```/g,'').trim());
-      const newFood = await enrichWithCiqual({ nom: name, ...parsed, quantite_g: 100, confiance: 3, idx });
+      const newFood = await enrichFood({ nom: name, ...parsed, quantite_g: 100, confiance: 3, idx });
       identifiedAliments.push(newFood);
       document.getElementById(`food-card-${idx}`).outerHTML = buildFoodCard(newFood, idx);
     } catch(e) { document.getElementById(`food-card-${idx}`).remove(); }
@@ -4694,7 +4705,7 @@ JSON uniquement : {"ciqual_nom":"...","emoji":"...","fvl_pct":0,"edulcorant":fal
   const NS_ALGO_VERSION = 'v0.11';
   function nsMeta(a) {
     const p = (a && a.per100g) || {};
-    if (p.ns_cat_src === 'ciqual') {   // aliment CIQUAL : catégorie, % FVL et édulcorant viennent de la table
+    if (p.ns_cat_src === 'ciqual' || (p.ns_cat_src === 'off' && p.ns_cat)) {   // catégorie, % FVL et édulcorant viennent de la table
       return { fvl: +p.ns_fvl_pct || 0, edulcorant: p.ns_edulcorant === true, cat: p.ns_cat, strict: true };
     }
     const raw = a && a.fvl_pct != null ? a.fvl_pct : p.ns_fvl_pct;
@@ -4747,7 +4758,7 @@ JSON uniquement : {"ciqual_nom":"...","emoji":"...","fvl_pct":0,"edulcorant":fal
     const p   = aliment.per100g;
     // Aliment CIQUAL dont une donnée indispensable (énergie, AGS, sucres, sel) est absente :
     // pas de lettre plutôt qu'une lettre fausse
-    const bloquant = meta.strict && p.ns_manquants ? p.ns_manquants.filter(k => ['kj', 'ag_sat', 'sucres', 'sel'].includes(k)) : [];
+    const bloquant = (p.ns_cat_src === 'ciqual' || p.ns_cat_src === 'off') && p.ns_manquants ? p.ns_manquants.filter(k => ['kj', 'ag_sat', 'sucres', 'sel'].includes(k)) : [];
     if (bloquant.length) return { lettre: null, score: null, incomplet: true, manquants: bloquant, categorie: cat };
     const fvl = meta.fvl;
 
@@ -4936,15 +4947,23 @@ JSON uniquement : {"ciqual_nom":"...","emoji":"...","fvl_pct":0,"edulcorant":fal
     p.ns_cat = food.k;
     p.ns_cat_src = 'ciqual';
     if (food.f != null) p.ns_fvl_pct = food.f;
-    // Énergie absente mais macronutriments connus : calcul (Atwater / règlement UE 1169/2011)
-    if (p.kj == null && p.prot != null && p.gluc != null && p.lip != null) {
+    return nsFinalizeTable(p, food.k);
+  }
+
+  /**
+   * Finalise un per100g issu d'une table (CIQUAL ou Open Food Facts) : calcule l'énergie si elle
+   * manque, et liste les données absentes (comptées 0 dans le Nutri-Score).
+   * Une donnée absente dont on sait qu'elle ne rapporterait de toute façon aucun point
+   * (ex. sucres inconnus mais glucides ≤ 3,4 g) n'est pas signalée.
+   */
+  function nsFinalizeTable(p, cat) {
+    if (p.kcal == null && p.kj != null) p.kcal = Math.round(p.kj / 4.184);
+    if (p.kj == null && p.kcal != null) p.kj = Math.round(p.kcal * 4.184);
+    if (p.kj == null && p.prot != null && p.gluc != null && p.lip != null) {   // Atwater / règlement UE 1169/2011
       const kc = 4 * p.prot + 4 * p.gluc + 9 * p.lip + 7 * (p.alcool || 0) + 2 * (p.fibres || 0);
       p.kcal = Math.round(kc); p.kj = Math.round(kc * 4.184); p.ns_energie_calculee = true;
     }
-    // Données absentes dans CIQUAL pour cet aliment (comptées 0 dans le Nutri-Score).
-    // Une donnée absente dont on sait qu'elle ne rapporterait de toute façon aucun point
-    // (ex. sucres inconnus mais glucides ≤ 3,4 g) n'est pas signalée.
-    const bev = food.k === 'boisson', mg = food.k === 'matieres_grasses';
+    const bev = cat === 'boisson', mg = cat === 'matieres_grasses';
     const man = [];
     if (p.kj == null) man.push('kj');
     if (p.ag_sat == null && !(!mg && p.lip != null && p.lip <= NS_AGS[0])) man.push('ag_sat');
@@ -4952,7 +4971,7 @@ JSON uniquement : {"ciqual_nom":"...","emoji":"...","fvl_pct":0,"edulcorant":fal
     if (p.sel == null && p.na == null) man.push('sel');
     if (p.fibres == null) man.push('fibres');
     if (p.prot == null) man.push('prot');
-    if (man.length) p.ns_manquants = man;
+    if (man.length) p.ns_manquants = man; else delete p.ns_manquants;
     return p;
   }
 
@@ -4969,6 +4988,7 @@ JSON uniquement : {"ciqual_nom":"...","emoji":"...","fvl_pct":0,"edulcorant":fal
     p.ns_edulcorant = /sans edulcorant/.test(nn) ? false : /avec edulcorant|edulcore/.test(nn) ? true : ai.edu;
     p.ciqual_code = food.c;
     p.ciqual_version = CIQUAL.version;
+    delete a.off_code;
     a.per100g = p;
     a.db_nom = food.n;
     a.source = 'CIQUAL';
@@ -4979,7 +4999,7 @@ JSON uniquement : {"ciqual_nom":"...","emoji":"...","fvl_pct":0,"edulcorant":fal
   // Informations Nutri-Score proposées par l'IA (champs bruts, jamais celles d'une entrée CIQUAL précédente)
   function ciqAiMeta(a) {
     const p = (a && a.per100g) || {};
-    const fromCiq = p.ns_cat_src === 'ciqual';
+    const fromCiq = p.ns_cat_src === 'ciqual' || p.ns_cat_src === 'off';
     const rawF = a && a.fvl_pct != null ? a.fvl_pct : (fromCiq ? 0 : p.ns_fvl_pct);
     const fvl = isNaN(+rawF) || rawF === '' || rawF == null ? 0 : Math.min(100, Math.max(0, +rawF));
     const e = a && a.edulcorant != null ? a.edulcorant : (fromCiq ? false : p.ns_edulcorant);
@@ -4993,21 +5013,43 @@ JSON uniquement : {"ciqual_nom":"...","emoji":"...","fvl_pct":0,"edulcorant":fal
    * - sinon (ou table indisponible) : valeurs estimées par l'IA, source « Estimation IA »
    * Les valeurs IA d'origine sont gardées en mémoire (_ai) pour pouvoir y revenir.
    */
-  async function enrichWithCiqual(a) {
-    delete a.ciqual_code; delete a._cands;
-    if (a.per100g && a.per100g.ns_cat_src !== 'ciqual') a._ai = { per100g: JSON.parse(JSON.stringify(a.per100g)) };
-    try {
-      const d = await ciqualLoad();
-      if (d) {
-        const m = ciqualMatch(a.nom, a.ciqual_nom);
-        a._cands = m.candidates.map(c => ({ c: c.food.c, n: c.food.n }));
-        if (m.best && !m.best.food._noE) { ciqualApplyFood(a, m.best.food); return nsApply(a); }   // entrée sans énergie : on garde l'estimation IA
-      }
-    } catch (e) { console.warn('[NSR] CIQUAL :', e.message); }
+  async function enrichFood(a) {
+    delete a.ciqual_code; delete a.off_code; delete a._cands; delete a._offCands;
+    const fromTable = a.per100g && (a.per100g.ns_cat_src === 'ciqual' || a.per100g.ns_cat_src === 'off');
+    if (a.per100g && !fromTable) a._ai = { per100g: JSON.parse(JSON.stringify(a.per100g)), nova: a.nova };
+    const dbs = (typeof currentDatabases === 'object' && currentDatabases) || { ciqual: true, off: true };
+    // 1. Produit de marque (ou code-barres lu) : Open Food Facts d'abord
+    if (dbs.off && (a.code_barres || a.marque)) {
+      try {
+        const m = await offMatch(a);
+        if (m.cands.length) a._offCands = m.cands.map(offSummary);
+        if (m.best) { offApplyProduct(a, m.best); return nsApply(a); }
+      } catch (e) { console.warn('[NSR] Open Food Facts :', e.message); }
+    }
+    // 2. Aliment générique : CIQUAL
+    if (dbs.ciqual !== false) {
+      try {
+        const d = await ciqualLoad();
+        if (d) {
+          const m = ciqualMatch(a.nom, a.ciqual_nom);
+          a._cands = m.candidates.map(c => ({ c: c.food.c, n: c.food.n }));
+          if (m.best && !m.best.food._noE) { ciqualApplyFood(a, m.best.food); return nsApply(a); }   // entrée sans énergie : on garde l'estimation IA
+        }
+      } catch (e) { console.warn('[NSR] CIQUAL :', e.message); }
+    }
+    // 3. Secours : estimation IA
+    ciqResetSource(a);
+    return nsApply(a);
+  }
+
+  /** Revient à l'estimation IA (valeurs d'origine) : efface toute trace de table de composition. */
+  function ciqResetSource(a) {
+    if (a._ai) { a.per100g = JSON.parse(JSON.stringify(a._ai.per100g)); if (a._ai.nova !== undefined) a.nova = a._ai.nova; }
+    if (a.per100g) { delete a.per100g.ns_cat_src; delete a.per100g.ciqual_code; delete a.per100g.off_code; }
+    delete a.ciqual_code; delete a.off_code;
     a.source = 'Estimation IA';
     a.db_nom = null;
-    if (a.per100g) delete a.per100g.ns_cat_src;
-    return nsApply(a);
+    return a;
   }
 
   /** Change l'entrée CIQUAL d'un aliment de l'écran de confirmation ('AI' = revenir à l'estimation IA). */
@@ -5018,13 +5060,13 @@ JSON uniquement : {"ciqual_nom":"...","emoji":"...","fvl_pct":0,"edulcorant":fal
     if (qtyEl) a.quantite_g = parseFloat(qtyEl.value) || a.quantite_g;
     if (code === 'AI') {
       if (!a._ai) return;
-      a.per100g = JSON.parse(JSON.stringify(a._ai.per100g));
-      delete a.per100g.ns_cat_src; delete a.ciqual_code;
-      a.source = 'Estimation IA'; a.db_nom = null;
+      ciqResetSource(a);
     } else {
       const d = await ciqualLoad();
       const f = d && d._byCode[code];
       if (!f) return;
+      if (a._ai && a._ai.nova !== undefined) a.nova = a._ai.nova;   // NOVA d'origine (celui d'OFF ne s'applique plus)
+      delete a.off_code;
       ciqualApplyFood(a, f);
     }
     nsApply(a);
@@ -5052,17 +5094,248 @@ JSON uniquement : {"ciqual_nom":"...","emoji":"...","fvl_pct":0,"edulcorant":fal
   }
 
   function ciqPanelHtml(a, i) {
-    const cur = a.ciqual_code;
-    const cands = (a._cands || []).filter(c => c.c !== cur);
+    const cur = a.ciqual_code || a.off_code;
+    const cands = (a._cands || []).filter(c => c.c !== a.ciqual_code);
     const curHtml = cur && a.db_nom ? ciqOptHtml(i, cur, a.db_nom, true) : '';
-    const aiHtml = a._ai && a.source === 'CIQUAL'
+    const offC = (a._offCands || []).filter(c => c.c !== a.off_code);
+    const offHtml = offC.map(c => '<button type="button" class="btn btn-sm" style="display:block;width:100%;text-align:left;margin-top:4px;font-size:12px;background:var(--bg);border:1px solid var(--border);" onclick="pickOff(' + i + ',\'' + ciqEsc(c.c) + '\')">'
+      + ciqEsc(c.n) + '<span style="color:var(--text-light)"> · OFF' + (c.kcal == null ? '' : ' · ' + c.kcal + ' kcal') + '</span></button>').join('');
+    const aiHtml = a._ai && a.source !== 'Estimation IA'
       ? '<button type="button" class="btn btn-sm" style="display:block;width:100%;text-align:left;margin-top:4px;font-size:12px;background:var(--bg);border:1px solid var(--border);" onclick="pickCiqual(' + i + ',\'AI\')">Utiliser l\'estimation IA à la place</button>' : '';
+    const lbl = a.source === 'OFF' ? 'Produit Open Food Facts utilisé :' : 'Entrée de la table CIQUAL 2025 utilisée :';
     return '<div id="ciq-' + i + '" style="display:none;margin-top:10px;">'
-      + '<div style="font-size:11px;color:var(--text-light);margin-bottom:2px">Entrée de la table CIQUAL 2025 utilisée :</div>'
-      + curHtml + cands.map(c => ciqOptHtml(i, c.c, c.n, false)).join('') + aiHtml
-      + '<div class="correction-row" style="margin-top:8px"><input type="text" class="form-input" id="ciq-q-' + i + '" placeholder="Chercher dans CIQUAL…" style="margin:0" onkeydown="if(event.key===\'Enter\'){searchCiqual(' + i + ')}"/>'
+      + (curHtml ? '<div style="font-size:11px;color:var(--text-light);margin-bottom:2px">' + lbl + '</div>' + curHtml : '')
+      + (cands.length ? '<div style="font-size:11px;color:var(--text-light);margin:8px 0 2px">Autres entrées CIQUAL :</div>' : '') + cands.map(c => ciqOptHtml(i, c.c, c.n, false)).join('')
+      + (offHtml ? '<div style="font-size:11px;color:var(--text-light);margin:8px 0 2px">Produits Open Food Facts trouvés :</div>' + offHtml : '')
+      + aiHtml
+      + '<div style="font-size:11px;color:var(--text-light);margin:10px 0 2px">Chercher dans CIQUAL (aliments génériques) :</div>'
+      + '<div class="correction-row"><input type="text" class="form-input" id="ciq-q-' + i + '" placeholder="ex : pomme, crue" style="margin:0" onkeydown="if(event.key===\'Enter\'){searchCiqual(' + i + ')}"/>'
       + '<button class="btn btn-primary btn-sm" style="width:auto;padding:10px 14px" onclick="searchCiqual(' + i + ')">OK</button></div>'
-      + '<div id="ciq-res-' + i + '"></div></div>';
+      + '<div id="ciq-res-' + i + '"></div>'
+      + '<div style="font-size:11px;color:var(--text-light);margin:10px 0 2px">Chercher un produit de marque (Open Food Facts) :</div>'
+      + '<div class="correction-row"><input type="text" class="form-input" id="off-q-' + i + '" placeholder="nom + marque, ou code-barres" style="margin:0" onkeydown="if(event.key===\'Enter\'){searchOff(' + i + ')}"/>'
+      + '<button class="btn btn-primary btn-sm" style="width:auto;padding:10px 14px" onclick="searchOff(' + i + ')">OK</button></div>'
+      + '<div id="off-res-' + i + '"></div></div>';
+  }
+
+  // =============================================
+  // OPEN FOOD FACTS (produits de marque, codes-barres)
+  // Base collaborative : les valeurs sont celles saisies par les contributeurs ou les fabricants.
+  // Limites de l'API publique : 10 recherches/min et 15 fiches produit/min par adresse IP,
+  // pas de recherche « au fil de la frappe » : on n'interroge OFF que sur action explicite.
+  // =============================================
+  const OFF_FIELDS = 'code,product_name,product_name_fr,brands,quantity,nutriments,nova_group,nutriscore_grade,categories_tags,additives_tags,last_modified_t';
+  const OFF_PRODUCTS = {};            // code-barres -> fiche brute (cache de session)
+  const OFF_CACHE = {};               // requête -> résultats (cache de session)
+  const OFF_SWEETENER_RE = /^en:e(420|421|950|951|952|953|954|955|957|959|960|961|962|964|965|966|967|968|969)([a-z]|$)/;
+
+  async function offFetchJson(url, ms) {
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), ms || 9000);
+    try {
+      const r = await fetch(url, { signal: ctl.signal, headers: { 'Accept': 'application/json' } });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return await r.json();
+    } finally { clearTimeout(t); }
+  }
+
+  const offNum = v => { const x = typeof v === 'string' ? parseFloat(v.replace(',', '.')) : v; return typeof x === 'number' && isFinite(x) && x >= 0 ? x : null; };
+
+  /** Fiche exploitable : énergie ou macronutriments renseignés et valeurs plausibles (les données OFF sont saisies par des contributeurs). */
+  function offUsable(prod) {
+    const n = (prod && prod.nutriments) || {};
+    const kcal = offNum(n['energy-kcal_100g']), kj = offNum(n['energy-kj_100g'] != null ? n['energy-kj_100g'] : n['energy_100g']);
+    const prot = offNum(n.proteins_100g), gluc = offNum(n.carbohydrates_100g), lip = offNum(n.fat_100g);
+    if (kcal == null && kj == null && (prot == null || gluc == null || lip == null)) return false;
+    if (kcal != null && kcal > 910) return false;
+    if (prot != null && prot > 100 || gluc != null && gluc > 100 || lip != null && lip > 100) return false;
+    if ((prot || 0) + (gluc || 0) + (lip || 0) > 110) return false;
+    return !!(prod.product_name || prod.product_name_fr);
+  }
+
+  async function offByBarcode(code) {
+    code = String(code).replace(/\D/g, '');
+    if (code.length < 8 || code.length > 14) return null;
+    if (OFF_PRODUCTS[code]) return OFF_PRODUCTS[code];
+    const d = await offFetchJson('https://world.openfoodfacts.org/api/v2/product/' + code + '.json?fields=' + OFF_FIELDS);
+    if (!d || d.status === 0 || !d.product) return null;
+    d.product.code = d.product.code || code;
+    OFF_PRODUCTS[code] = d.product;
+    return d.product;
+  }
+
+  /** Recherche texte. Moteur historique (cgi/search.pl) puis, s'il est indisponible, Search-a-licious. */
+  async function offSearch(q, n) {
+    q = String(q || '').trim();
+    if (!q) return [];
+    n = n || 8;
+    const key = ciqNorm(q) + '|' + n;
+    if (OFF_CACHE[key]) return OFF_CACHE[key];
+    let list = null;
+    try {
+      const d = await offFetchJson('https://world.openfoodfacts.org/cgi/search.pl?search_terms=' + encodeURIComponent(q)
+        + '&search_simple=1&action=process&json=1&lc=fr&page_size=' + (n * 3) + '&sort_by=unique_scans_n&fields=' + OFF_FIELDS);
+      list = d.products || [];
+    } catch (e1) {
+      try {
+        const d = await offFetchJson('https://search.openfoodfacts.org/search?q=' + encodeURIComponent(q)
+          + '&langs=fr&page_size=' + (n * 3) + '&fields=' + OFF_FIELDS);
+        list = d.hits || d.products || [];
+      } catch (e2) { throw e1; }
+    }
+    list = list.filter(offUsable);
+    list.forEach(p => { if (p.code) OFF_PRODUCTS[p.code] = p; });
+    OFF_CACHE[key] = list;
+    return list;
+  }
+
+  /** Score de correspondance entre un produit OFF et ce que l'IA a lu (nom + marque). */
+  function offScore(prod, nom, marque) {
+    const hay = new Set(ciqNorm((prod.product_name_fr || prod.product_name || '') + ' ' + (prod.brands || '')).split(/[^a-z0-9]+/).filter(Boolean));
+    const toks = x => ciqNorm(x || '').split(/[^a-z0-9]+/).filter(t => t.length > 1 && !CIQ_STOP.has(t));
+    const nt = toks(nom), bt = toks(marque);
+    const hit = ts => ts.filter(t => hay.has(t) || hay.has(ciqSing(t))).length;
+    const brandOk = !bt.length || hit(bt) === bt.length;
+    const all = nt.concat(bt.filter(t => !nt.includes(t)));
+    const frac = all.length ? hit(all) / all.length : 0;
+    // couverture : part des mots de la fiche OFF retrouvés dans ce que l'IA a lu (nom « Nutella » contenu dans « pâte à tartiner Nutella »)
+    const pt = Array.from(hay).filter(t => t.length > 1);
+    const qs = new Set(nt.concat(bt).concat(nt.map(ciqSing)).concat(bt.map(ciqSing)));
+    const cov = pt.length ? pt.filter(t => qs.has(t) || qs.has(ciqSing(t))).length / pt.length : 0;
+    return { frac, cov, brandOk };
+  }
+
+  /**
+   * Cherche le produit : code-barres s'il est lu sur l'emballage, sinon nom + marque.
+   * best : seulement si la correspondance est solide (marque retrouvée et ≥ 75 % des mots) ; sinon l'appli
+   * retombe sur CIQUAL et propose les produits OFF trouvés dans le panneau « Entrée ».
+   */
+  async function offMatch(a) {
+    if (a.code_barres) {
+      const p = await offByBarcode(a.code_barres);
+      if (p && offUsable(p)) return { best: p, cands: [p] };
+    }
+    const q = [a.nom, a.marque].filter(Boolean).join(' ');
+    const list = await offSearch(q, 8);
+    const scored = list.map(p => ({ p, sc: offScore(p, a.nom, a.marque) })).sort((x, y) => (y.sc.frac - x.sc.frac) || (y.sc.cov - x.sc.cov));
+    const top = scored[0], sec = scored[1];
+    let best = top && top.sc.brandOk && (top.sc.frac >= 0.75 || (top.sc.cov === 1 && a.marque)) ? top.p : null;
+    // deux produits aussi plausibles aux énergies très différentes (ex. yaourt nature / grec) : on ne tranche pas, l'utilisateur choisit
+    if (best && sec && sec.sc.frac >= top.sc.frac - 1e-9 && sec.sc.cov >= top.sc.cov - 1e-9) {
+      const k1 = offNum((top.p.nutriments || {})['energy-kcal_100g']), k2 = offNum((sec.p.nutriments || {})['energy-kcal_100g']);
+      if (k1 != null && k2 != null && Math.abs(k1 - k2) > 0.15 * Math.max(k1, k2, 1)) best = null;
+    }
+    return { best, cands: scored.slice(0, 6).map(x => x.p) };
+  }
+
+  function offName(p) {
+    const n = p.product_name_fr || p.product_name || '';
+    const b = (p.brands || '').split(',')[0].trim();
+    return b && !ciqNorm(n).includes(ciqNorm(b)) ? n + ' — ' + b : n;
+  }
+  function offSummary(p) {
+    const n = p.nutriments || {};
+    const kc = offNum(n['energy-kcal_100g']);
+    return { c: p.code, n: offName(p), kcal: kc == null ? null : Math.round(kc), ns: (p.nutriscore_grade || '').toUpperCase() };
+  }
+
+  /** Catégorie Nutri-Score d'après les catégories OFF ; null si la fiche n'en a pas. */
+  function offCategory(prod, p) {
+    const t = prod.categories_tags || [];
+    if (!t.length) return null;
+    const has = re => t.some(x => re.test(x));
+    if (has(/^en:alcoholic-beverages$/)) return 'alcool';
+    if (has(/^en:(waters|spring-waters|mineral-waters|natural-mineral-waters)$/)
+        && !has(/flavou?red|sweetened|soda|juice|nectar/) && (p.sucres == null || p.sucres <= 0.5)) return 'eau';
+    if (has(/^en:(beverages|milks|plant-based-milks|dairy-drinks|fruit-juices|sodas|fruit-based-beverages)$/)) return 'boisson';
+    if (has(/^en:cheeses$/)) return 'fromage';
+    if (has(/^en:(fats|vegetable-oils|oils|butters|margarines|creams|vegetable-fats|animal-fats)$/)) return 'matieres_grasses';
+    const byName = nsCategorie(prod.product_name_fr || prod.product_name || '', null);
+    return byName === 'viande_rouge' ? 'viande_rouge' : 'general';
+  }
+
+  /** Fiche OFF -> per100g au format NSR (les valeurs _100g d'OFF sont en grammes, sauf l'énergie). */
+  function offPer100g(prod, ai) {
+    const n = prod.nutriments || {};
+    const g = k => offNum(n[k + '_100g']);
+    const p = {};
+    const put = (id, v, f) => { if (v != null) p[id] = +(v * (f || 1)).toPrecision(5) * 1; };
+    put('kcal', g('energy-kcal')); put('kj', n['energy-kj_100g'] != null ? offNum(n['energy-kj_100g']) : offNum(n['energy_100g']));
+    put('prot', g('proteins')); put('gluc', g('carbohydrates')); put('sucres', g('sugars')); put('amidon', g('starch'));
+    put('fibres', g('fiber')); put('lip', g('fat')); put('alcool', g('alcohol'));
+    put('ag_sat', g('saturated-fat')); put('ag_mono', g('monounsaturated-fat')); put('ag_poly', g('polyunsaturated-fat'));
+    put('ag_trans', g('trans-fat')); put('omega3', g('omega-3-fat')); put('omega6', g('omega-6-fat')); put('cholesterol', g('cholesterol'), 1000);
+    const na = g('sodium'), sel = g('salt');
+    put('sel', sel != null ? sel : (na != null ? na * 2.5 : null)); put('na', na, 1000);
+    [['ca', 'calcium', 1000], ['mg', 'magnesium', 1000], ['k', 'potassium', 1000], ['p', 'phosphorus', 1000], ['fe', 'iron', 1000], ['zn', 'zinc', 1000],
+     ['cu', 'copper', 1000], ['mn', 'manganese', 1000], ['se', 'selenium', 1e6], ['iode', 'iodine', 1e6],
+     ['vitA', 'vitamin-a', 1e6], ['vitD', 'vitamin-d', 1e6], ['vitE', 'vitamin-e', 1000], ['vitK1', 'vitamin-k', 1e6], ['vitC', 'vitamin-c', 1000],
+     ['vitB1', 'vitamin-b1', 1000], ['vitB2', 'vitamin-b2', 1000], ['vitB3', 'vitamin-pp', 1000], ['vitB5', 'pantothenic-acid', 1000],
+     ['vitB6', 'vitamin-b6', 1000], ['folates', 'vitamin-b9', 1e6], ['vitB12', 'vitamin-b12', 1e6]]
+      .forEach(([id, k, f]) => put(id, g(k), f));
+    const cat = offCategory(prod, p);
+    if (cat) { p.ns_cat = cat; }
+    p.ns_cat_src = 'off';
+    // % fruits/légumes/légumineuses : estimation OFF à partir des ingrédients, sinon avis de l'IA
+    const fv = offNum(n['fruits-vegetables-legumes-estimate-from-ingredients_100g']);
+    p.ns_fvl_pct = fv != null ? Math.min(100, fv) : ai.fvl;
+    // édulcorants : additifs déclarés sur l'étiquette, sinon avis de l'IA
+    const add = prod.additives_tags || [];
+    p.ns_edulcorant = add.some(x => OFF_SWEETENER_RE.test(x)) ? true : (add.length ? false : ai.edu);
+    return nsFinalizeTable(p, cat || p.ns_cat);
+  }
+
+  /** Applique une fiche OFF à un aliment : valeurs, NOVA (celui d'OFF fait foi), traçabilité. */
+  function offApplyProduct(a, prod) {
+    const ai = ciqAiMeta(a);
+    const p = offPer100g(prod, ai);
+    p.off_code = prod.code;
+    p.off_date = new Date().toISOString().slice(0, 10);      // OFF évolue : date de la copie des valeurs
+    if (prod.last_modified_t) p.off_modif = new Date(prod.last_modified_t * 1000).toISOString().slice(0, 10);
+    if (prod.nutriscore_grade) p.off_nutriscore = String(prod.nutriscore_grade).toUpperCase();
+    a.per100g = p;
+    a.db_nom = offName(prod);
+    a.source = 'OFF';
+    a.off_code = prod.code;
+    delete a.ciqual_code;
+    const nv = parseInt(prod.nova_group, 10);
+    if (nv >= 1 && nv <= 4) a.nova = nv;
+    return a;
+  }
+
+  /** Choix d'un produit OFF depuis le panneau de l'écran de confirmation. */
+  async function pickOff(i, code) {
+    const a = identifiedAliments[i];
+    if (!a) return;
+    const qtyEl = document.getElementById('qty-' + i);
+    if (qtyEl) a.quantite_g = parseFloat(qtyEl.value) || a.quantite_g;
+    let prod = OFF_PRODUCTS[code];
+    try { if (!prod) prod = await offByBarcode(code); } catch (e) { prod = null; }
+    if (!prod) { alert('Produit introuvable ou Open Food Facts indisponible.'); return; }
+    offApplyProduct(a, prod);
+    nsApply(a);
+    const card = document.getElementById('food-card-' + i);
+    if (card) card.outerHTML = buildFoodCard(a, i);
+  }
+
+  /** Recherche Open Food Facts (nom, marque ou code-barres) depuis le panneau. */
+  async function searchOff(i) {
+    const q = ((document.getElementById('off-q-' + i) || {}).value || '').trim();
+    const out = document.getElementById('off-res-' + i);
+    if (!out || !q) return;
+    out.innerHTML = '<div style="font-size:12px;color:var(--text-light)">Recherche sur Open Food Facts…</div>';
+    try {
+      let list;
+      if (/^\d{8,14}$/.test(q)) { const p = await offByBarcode(q); list = p && offUsable(p) ? [p] : []; }
+      else list = (await offSearch(q, 8)).slice(0, 8);
+      out.innerHTML = list.length ? list.map(p => {
+        const s = offSummary(p);
+        return '<button type="button" class="btn btn-sm" style="display:block;width:100%;text-align:left;margin-top:4px;font-size:12px;background:var(--bg);border:1px solid var(--border);" onclick="pickOff(' + i + ',\'' + ciqEsc(p.code) + '\')">'
+          + ciqEsc(s.n) + '<span style="color:var(--text-light)"> · ' + (s.kcal == null ? '' : s.kcal + ' kcal/100 g') + (s.ns ? ' · Nutri-Score OFF ' + ciqEsc(s.ns) : '') + '</span></button>';
+      }).join('') : '<div style="font-size:12px;color:var(--text-light)">Aucun produit exploitable trouvé.</div>';
+    } catch (e) {
+      out.innerHTML = '<div style="font-size:12px;color:var(--red)">Open Food Facts indisponible ou limite de requêtes atteinte (10 recherches/min) : réessayez dans une minute.</div>';
+    }
   }
 
   // =============================================
@@ -5812,12 +6085,12 @@ JSON uniquement : {"ciqual_nom":"...","emoji":"...","fvl_pct":0,"edulcorant":fal
       var response = await nsrAnalyzeFetch({
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 500,
-          messages: [{ role: 'user', content: 'Bases : ' + dbs + '. Valeurs pour 100g de "' + name + '". ciqual_nom = intitulé le plus probable dans la table CIQUAL (ex : "Pomme, crue"). fvl_pct = % de fruits, légumes et légumineuses dans le produit tel que mangé (0-100 ; hors pommes de terre, fruits à coque, graines, huiles ; 100 pour un fruit ou légume nature ou un jus pur fruit). edulcorant = true seulement si une boisson contient des édulcorants non nutritifs (aspartame, acésulfame K, sucralose, stévia, saccharine ; pas les polyols). ns_cat = "boisson" (eau, lait, boisson végétale, jus, soda, thé, café), "eau" (eau nature seule), "fromage" (hors fromage blanc), "viande_rouge" (bœuf, veau, agneau, porc, charcuterie) ou "general". JSON: {"ciqual_nom":"...","emoji":"...","fvl_pct":0,"edulcorant":false,"ns_cat":"general","per100g":{"kcal":0,"prot":0,"lip":0,"gluc":0,"sucres":0,"ag_sat":0,"fibres":0,"eau":0,"sel":0,"ca":0,"fe":0,"vitC":0,"vitD":0,"vitB12":0,"folates":0,"mg":0,"zn":0,"k":0,"omega3":0}}' }]
+          messages: [{ role: 'user', content: 'Bases : ' + dbs + '. Valeurs pour 100g de "' + name + '". ciqual_nom = intitulé le plus probable dans la table CIQUAL (ex : "Pomme, crue"), marque = marque commerciale si produit industriel identifiable (sinon null). fvl_pct = % de fruits, légumes et légumineuses dans le produit tel que mangé (0-100 ; hors pommes de terre, fruits à coque, graines, huiles ; 100 pour un fruit ou légume nature ou un jus pur fruit). edulcorant = true seulement si une boisson contient des édulcorants non nutritifs (aspartame, acésulfame K, sucralose, stévia, saccharine ; pas les polyols). ns_cat = "boisson" (eau, lait, boisson végétale, jus, soda, thé, café), "eau" (eau nature seule), "fromage" (hors fromage blanc), "viande_rouge" (bœuf, veau, agneau, porc, charcuterie) ou "general". JSON: {"ciqual_nom":"...","marque":null,"emoji":"...","fvl_pct":0,"edulcorant":false,"ns_cat":"general","per100g":{"kcal":0,"prot":0,"lip":0,"gluc":0,"sucres":0,"ag_sat":0,"fibres":0,"eau":0,"sel":0,"ca":0,"fe":0,"vitC":0,"vitD":0,"vitB12":0,"folates":0,"mg":0,"zn":0,"k":0,"omega3":0}}' }]
         })
       });
       var data = await response.json();
       var parsed = JSON.parse(data.content[0].text.replace(/```json|```/g,'').trim());
-      var newFood = await enrichWithCiqual(Object.assign({ nom:name, quantite_g:100, confiance:3, idx:idx }, parsed));
+      var newFood = await enrichFood(Object.assign({ nom:name, quantite_g:100, confiance:3, idx:idx }, parsed));
       editMealFoods.push(newFood);
       identifiedAliments = editMealFoods.map(function(f){ return Object.assign({},f); });
       document.getElementById('food-card-' + idx).outerHTML = buildFoodCard(newFood, idx);
