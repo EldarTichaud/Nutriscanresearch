@@ -1551,7 +1551,14 @@
           <li style="margin-bottom:6px">L'application n'est pas un outil de diagnostic et ne remplace pas un avis médical ou diététique.</li>
           <li style="margin-bottom:6px">Votre profil et la suppression de votre compte se gèrent dans <b>Profil</b> et <b>Paramètres</b>.</li>
         </ul>
+        <div class="section-label">Sources des données</div>
+        <ul style="padding-left:18px;margin-bottom:14px;font-size:13px;color:var(--text-mid)">
+          <li style="margin-bottom:6px">Table de composition des aliments <b>Ciqual 2025</b>, ANSES (<a href="https://ciqual.anses.fr" target="_blank" rel="noopener">ciqual.anses.fr</a>).</li>
+          <li style="margin-bottom:6px"><b>Open Food Facts</b>, base collaborative sous licence ODbL (<a href="https://openfoodfacts.org" target="_blank" rel="noopener">openfoodfacts.org</a>).</li>
+          <li style="margin-bottom:6px"><b>Nutri-Score</b> (algorithme actualisé 2023, Santé publique France) et classification <b>NOVA</b> (Monteiro et al., Université de São Paulo).</li>
+        </ul>
         <div style="font-size:12px;color:var(--text-light)" id="patient-about-version"></div>
+        <div style="font-size:12px;color:var(--text-light);margin-top:4px">© 2026 NutriScanResearch. Tous droits réservés.</div>
       </div>
       <div style="height:90px"></div>
     </div>
@@ -2257,7 +2264,7 @@
           <div class="settings-row-left">
             <div class="settings-icon">ℹ️</div>
             <div>
-              <div class="settings-label">NutriScanResearch v0.12.1</div>
+              <div class="settings-label">NutriScanResearch v0.12.2</div>
               <div class="settings-value">Prototype de recherche — CHU Poitiers</div>
             </div>
           </div>
@@ -3788,6 +3795,10 @@
   // À compléter à chaque nouvelle version (entrée la plus récente en premier)
   // =============================================
   const CHANGELOG = [
+    { version: '0.12.2', date: '2026-11-08', changes: [
+      'À propos : sources des données (Ciqual 2025 / ANSES, Open Food Facts, Nutri-Score, NOVA) et mention de droits réservés',
+      'Ajout d\'un fichier LICENSE (tous droits réservés) à la racine du dépôt'
+    ]},
     { version: '0.12.1', date: '2026-11-07', changes: [
       'Nouvelle page d\'accueil patient à l\'ouverture de l\'application : Recueil alimentaire, Notice d\'information, À propos, Contacts',
       'La notice d\'information (texte et lien PDF facultatif) se renseigne dans la configuration du projet ; le contact investigateur est affiché dans « Contacts » avec l\'assistance technique',

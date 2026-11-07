@@ -1,0 +1,38 @@
+Copyright (c) 2026 Romain Lecomte. Tous droits réservés.
+Copyright (c) 2026 Romain Lecomte. All rights reserved.
+
+NutriScanResearch (le « Logiciel ») : code source, interface, textes, logo et
+documentation.
+
+FR — Aucune licence d'utilisation, de copie, de modification, de diffusion ou
+de redistribution du Logiciel, en tout ou partie, n'est accordée sans
+l'autorisation écrite préalable du titulaire des droits. L'utilisation de
+l'application dans le cadre d'un projet de recherche autorisé par son
+responsable ne confère aucun droit sur le code source.
+
+EN — No licence is granted to use, copy, modify, distribute or sublicense the
+Software, in whole or in part, without the prior written permission of the
+copyright holder. Use of the application within an authorised research
+project does not grant any right in the source code.
+
+Le Logiciel est fourni « en l'état », sans garantie d'aucune sorte. Il ne
+constitue pas un dispositif médical et ne remplace pas un avis médical ou
+diététique.
+The Software is provided "as is", without warranty of any kind. It is not a
+medical device and does not replace medical or dietary advice.
+
+------------------------------------------------------------------------
+Données et composants tiers / Third-party data and components
+(non couverts par la présente notice ; leurs propres conditions s'appliquent)
+
+- Table de composition nutritionnelle Ciqual 2025 — ANSES
+  (https://ciqual.anses.fr). Réutilisation soumise à la citation de la source
+  et de la version (licence de réutilisation des informations publiques).
+- Open Food Facts — base collaborative (https://openfoodfacts.org), publiée
+  sous licence ODbL ; contenu des fiches sous licence DbCL, images sous
+  CC BY-SA. Attribution requise.
+- Algorithme Nutri-Score (version actualisée 2023) — Santé publique France.
+  L'usage du logo Nutri-Score est soumis à ses conditions d'utilisation.
+- Classification NOVA — Monteiro et al., Université de São Paulo.
+- Bibliothèques JavaScript chargées par l'application (ex. Supabase JS) :
+  licences de leurs auteurs respectifs.
