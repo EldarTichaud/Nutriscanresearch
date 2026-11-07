@@ -26,6 +26,12 @@
     --radius-sm: 10px;
   }
 
+  .menu-card { display:flex; align-items:center; gap:14px; width:100%; text-align:left; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:18px 16px; cursor:pointer; font-family:inherit; color:var(--text); box-shadow:0 1px 3px rgba(0,0,0,.05); }
+  .menu-card:active { background: var(--teal-light); }
+  .menu-card-icon { font-size:28px; width:44px; height:44px; display:flex; align-items:center; justify-content:center; background:var(--teal-light); border-radius:12px; flex-shrink:0; }
+  .menu-card b { display:block; font-size:16px; }
+  .menu-card small { display:block; font-size:12.5px; color:var(--text-light); margin-top:2px; }
+
   /* Thème investigateur : bleu foncé (le patient garde le vert-bleu par défaut) */
   body.theme-inv {
     --teal: #1B3A6B;
@@ -1483,6 +1489,89 @@
   </div>
 
   <!-- ============ SCREEN: PATIENT HOME ============ -->
+
+  <!-- ============ SCREEN: ACCUEIL PATIENT (menu) ============ -->
+  <div class="screen" id="screen-patient-menu">
+    <div class="patient-hero">
+      <div class="patient-project-tag" id="menu-project-tag">PROJET</div>
+      <div class="patient-greeting" id="menu-greeting">Bonjour !</div>
+      <div style="font-size:13px;opacity:0.8;margin-top:6px">Que souhaitez-vous faire ?</div>
+    </div>
+    <div class="content">
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <button class="menu-card" onclick="goTo('screen-patient-home')"><span class="menu-card-icon">🥗</span><span><b>Recueil alimentaire</b><small>Enregistrer et consulter mes repas</small></span></button>
+        <button class="menu-card" onclick="openPatientNotice()"><span class="menu-card-icon">📄</span><span><b>Notice d'information</b><small>Le projet de recherche auquel je participe</small></span></button>
+        <button class="menu-card" onclick="openPatientAbout()"><span class="menu-card-icon">ℹ️</span><span><b>À propos</b><small>Comment fonctionne l'application</small></span></button>
+        <button class="menu-card" onclick="openPatientContacts()"><span class="menu-card-icon">✉️</span><span><b>Contacts</b><small>Poser une question</small></span></button>
+      </div>
+      <div style="height:90px"></div>
+    </div>
+    <div class="bottom-nav">
+      <div class="nav-item active" onclick="goTo('screen-patient-menu')"><div class="nav-icon">🏠</div>Accueil</div>
+      <div class="nav-item" onclick="goTo('screen-patient-home')"><div class="nav-icon">🥗</div>Mon recueil</div>
+      <div class="nav-item" onclick="openPatientProfile()"><div class="nav-icon">👤</div>Profil</div>
+      <div class="nav-item" onclick="goTo('screen-settings');loadSettingsNotifications()"><div class="nav-icon">⚙️</div>Paramètres</div>
+      <div class="nav-item" onclick="logout()"><div class="nav-icon">🚪</div>Déconnexion</div>
+    </div>
+  </div>
+
+  <!-- ============ SCREEN: NOTICE D'INFORMATION (patient) ============ -->
+  <div class="screen" id="screen-patient-notice">
+    <div class="header"><div class="header-row">
+      <div class="back-btn" onclick="goTo('screen-patient-menu')">←</div>
+      <h2>Notice d'information</h2>
+    </div></div>
+    <div class="content">
+      <div id="patient-notice-project" class="section-label"></div>
+      <div id="patient-notice-body" style="font-size:14px;line-height:1.6;color:var(--text)"></div>
+      <div id="patient-notice-link" style="margin-top:16px"></div>
+      <div style="height:90px"></div>
+    </div>
+  </div>
+
+  <!-- ============ SCREEN: À PROPOS (patient) ============ -->
+  <div class="screen" id="screen-patient-about">
+    <div class="header"><div class="header-row">
+      <div class="back-btn" onclick="goTo('screen-patient-menu')">←</div>
+      <h2>À propos</h2>
+    </div></div>
+    <div class="content">
+      <div style="font-size:14px;line-height:1.6;color:var(--text)">
+        <p style="margin-bottom:12px"><b>NutriScanResearch</b> est une application de recueil alimentaire utilisée dans un projet de recherche du CHU de Poitiers. Elle sert à noter ce que vous mangez, sans calcul de votre part.</p>
+        <div class="section-label">Comment enregistrer un repas</div>
+        <ul style="padding-left:18px;margin-bottom:14px">
+          <li style="margin-bottom:6px"><b>Photo ou saisie :</b> photographiez votre assiette, ou décrivez votre repas par écrit.</li>
+          <li style="margin-bottom:6px"><b>Vérification :</b> l'application propose les aliments reconnus et des quantités estimées. <b>Vous confirmez ou corrigez</b> chaque aliment avant l'enregistrement.</li>
+          <li style="margin-bottom:6px"><b>Repas modifiable :</b> vous pouvez rouvrir un repas pour le corriger.</li>
+          <li style="margin-bottom:6px"><b>Repas sauté :</b> signalez-le pour que l'équipe sache que ce n'est pas un oubli.</li>
+        </ul>
+        <div class="section-label">Bon à savoir</div>
+        <ul style="padding-left:18px;margin-bottom:14px">
+          <li style="margin-bottom:6px">Les valeurs nutritionnelles viennent de tables de composition (Ciqual, Open Food Facts) ; la reconnaissance et les quantités sont estimées par intelligence artificielle : elles peuvent être inexactes, d'où la vérification.</li>
+          <li style="margin-bottom:6px">L'application n'est pas un outil de diagnostic et ne remplace pas un avis médical ou diététique.</li>
+          <li style="margin-bottom:6px">Votre profil et la suppression de votre compte se gèrent dans <b>Profil</b> et <b>Paramètres</b>.</li>
+        </ul>
+        <div style="font-size:12px;color:var(--text-light)" id="patient-about-version"></div>
+      </div>
+      <div style="height:90px"></div>
+    </div>
+  </div>
+
+  <!-- ============ SCREEN: CONTACTS (patient) ============ -->
+  <div class="screen" id="screen-patient-contacts">
+    <div class="header"><div class="header-row">
+      <div class="back-btn" onclick="goTo('screen-patient-menu')">←</div>
+      <h2>Contacts</h2>
+    </div></div>
+    <div class="content">
+      <div class="section-label">Une question sur l'étude</div>
+      <div id="contact-investigator" style="margin-bottom:20px"></div>
+      <div class="section-label">Un problème avec l'application</div>
+      <div id="contact-support"></div>
+      <div style="height:90px"></div>
+    </div>
+  </div>
+
   <div class="screen" id="screen-patient-home">
     <div class="patient-hero">
       <div class="patient-project-tag" id="patient-project-tag">PROJET</div>
@@ -1534,10 +1623,10 @@
     </div>
 
     <div class="bottom-nav">
+      <div class="nav-item" onclick="goTo('screen-patient-menu')"><div class="nav-icon">🏠</div>Accueil</div>
       <div class="nav-item active" onclick="goTo('screen-patient-home')"><div class="nav-icon">🥗</div>Mon recueil</div>
       <div class="nav-item" onclick="openPatientProfile()"><div class="nav-icon">👤</div>Profil</div>
       <div class="nav-item" onclick="goTo('screen-settings');loadSettingsNotifications()"><div class="nav-icon">⚙️</div>Paramètres</div>
-      <div class="nav-item nav-contact-btn" onclick="showContactInfo()" style="display:none"><div class="nav-icon">✉️</div>Contact</div>
       <div class="nav-item" onclick="logout()"><div class="nav-icon">🚪</div>Déconnexion</div>
     </div>
   </div>
@@ -1912,7 +2001,15 @@
       <div class="form-group" style="margin-top:12px">
         <label class="form-label">Email de contact pour les patients</label>
         <input type="email" class="form-input" id="project-contact-email" placeholder="ex. docteur.dupont@hopital.fr" />
-        <div style="font-size:12px;color:var(--text-light);margin-top:4px">Visible par le patient en cas de question</div>
+        <div style="font-size:12px;color:var(--text-light);margin-top:4px">Visible par le patient dans « Contacts » (investigateur principal)</div>
+      </div>
+
+      <div class="form-group" style="margin-top:12px">
+        <label class="form-label">Notice d'information (texte affiché au patient)</label>
+        <textarea class="form-input" id="project-notice-text" rows="7" placeholder="Collez ici le texte de la notice d'information validée (objectifs, déroulement, droits, contact…)"></textarea>
+        <label class="form-label" style="margin-top:10px">Lien vers la notice complète (PDF), facultatif</label>
+        <input type="url" class="form-input" id="project-notice-url" placeholder="https://…" />
+        <div style="font-size:12px;color:var(--text-light);margin-top:4px">Affichés dans « Notice d'information » côté patient. Utilisez la version validée par le comité d'éthique / le DPO.</div>
       </div>
 
       <div class="divider"></div>
@@ -2160,7 +2257,7 @@
           <div class="settings-row-left">
             <div class="settings-icon">ℹ️</div>
             <div>
-              <div class="settings-label">NutriScanResearch v0.12.0</div>
+              <div class="settings-label">NutriScanResearch v0.12.1</div>
               <div class="settings-value">Prototype de recherche — CHU Poitiers</div>
             </div>
           </div>
@@ -2218,10 +2315,10 @@
       <div style="height:32px"></div>
     </div>
     <div class="bottom-nav">
+      <div class="nav-item" onclick="goTo('screen-patient-menu')"><div class="nav-icon">🏠</div>Accueil</div>
       <div class="nav-item" onclick="goTo('screen-patient-home')"><div class="nav-icon">🥗</div>Mon recueil</div>
       <div class="nav-item" onclick="openPatientProfile()"><div class="nav-icon">👤</div>Profil</div>
       <div class="nav-item" onclick="goTo('screen-settings');loadSettingsNotifications()"><div class="nav-icon">⚙️</div>Paramètres</div>
-      <div class="nav-item nav-contact-btn" onclick="showContactInfo()" style="display:none"><div class="nav-icon">✉️</div>Contact</div>
       <div class="nav-item" onclick="logout()"><div class="nav-icon">🚪</div>Déconnexion</div>
     </div>
   </div>
@@ -2241,10 +2338,10 @@
       <div style="height:32px"></div>
     </div>
     <div class="bottom-nav">
+      <div class="nav-item" onclick="goTo('screen-patient-menu')"><div class="nav-icon">🏠</div>Accueil</div>
       <div class="nav-item" onclick="goTo('screen-patient-home')"><div class="nav-icon">🥗</div>Mon recueil</div>
       <div class="nav-item" onclick="openPatientProfile()"><div class="nav-icon">👤</div>Profil</div>
       <div class="nav-item" onclick="goTo('screen-settings');loadSettingsNotifications()"><div class="nav-icon">⚙️</div>Paramètres</div>
-      <div class="nav-item nav-contact-btn" onclick="showContactInfo()" style="display:none"><div class="nav-icon">✉️</div>Contact</div>
       <div class="nav-item" onclick="logout()"><div class="nav-icon">🚪</div>Déconnexion</div>
     </div>
   </div>
@@ -2426,6 +2523,7 @@
   let currentUser = null;
   let currentProfile = null;
   let currentContactEmail = null;
+  let currentNotice = { name: '', text: '', url: '' };
 
   // =============================================
   // INIT & SESSION
@@ -2496,14 +2594,15 @@
             currentTrackedNutrients = Array.isArray(proj.config?.nutrients) ? proj.config.nutrients : [];
             currentDatabases = { ciqual: proj.config?.databases?.ciqual !== false, off: proj.config?.databases?.off !== false };
             if (currentShowBilan) document.getElementById('patient-bilan').style.display = 'block';
-            if (proj.config?.contact_email) {
-              currentContactEmail = proj.config.contact_email;
-              document.querySelectorAll('.nav-contact-btn').forEach(el => el.style.display = 'flex');
-            }
+            const tag = 'PROJET ' + (proj.name || '').toUpperCase();
+            const mt = document.getElementById('menu-project-tag'); if (mt) mt.textContent = tag;
+            currentNotice = { name: proj.name || '', text: proj.config?.notice_text || '', url: proj.config?.notice_url || '' };
+            if (proj.config?.contact_email) currentContactEmail = proj.config.contact_email;
           }
         }
         document.getElementById('patient-greeting').textContent =
           'Bonjour' + (currentProfile.prenom ? ', ' + currentProfile.prenom : '') + ' !';
+        const mg = document.getElementById('menu-greeting'); if (mg) mg.textContent = document.getElementById('patient-greeting').textContent;
         // Si profil incomplet → écran profil
         if (!currentProfile.profile_complete) {
           showToast('Bienvenue ! Complétez votre profil pour commencer.', 'info', 4000);
@@ -2519,7 +2618,7 @@
             localStorage.setItem('nsr_welcome_shown', today);
             document.getElementById('welcome-modal').classList.add('active');
           }
-          goTo('screen-patient-home');
+          goTo('screen-patient-menu');
         }
       }
     } catch(e) {
@@ -2662,14 +2761,14 @@
 
   async function logout() {
     await sb.auth.signOut();
-    currentUser = null; currentProfile = null; currentContactEmail = null;
+    currentUser = null; currentProfile = null; currentContactEmail = null; currentNotice = { name: '', text: '', url: '' };
     applyRoleTheme(null);
     goTo('screen-splash');
   }
 
   // Accueil selon le rôle (les Paramètres sont partagés entre patient et investigateur)
   function goHome() {
-    goTo(currentProfile && currentProfile.role === 'patient' ? 'screen-patient-home' : 'screen-home');
+    goTo(currentProfile && currentProfile.role === 'patient' ? 'screen-patient-menu' : 'screen-home');
   }
 
   function deleteAccount() {
@@ -2711,7 +2810,7 @@
       if (error) throw error;
       const m = document.getElementById('delete-account-modal'); if (m) m.remove();
       try { await sb.auth.signOut(); } catch(_) {}
-      currentUser = null; currentProfile = null; currentContactEmail = null;
+      currentUser = null; currentProfile = null; currentContactEmail = null; currentNotice = { name: '', text: '', url: '' };
       applyRoleTheme(null);
       showToast('Compte supprimé', 'success');
       goTo('screen-splash');
@@ -2832,6 +2931,8 @@
     document.getElementById('project-start-date').value = '';
     document.getElementById('project-access-duration').value = '30';
     document.getElementById('project-contact-email').value = '';
+    document.getElementById('project-notice-text').value = '';
+    document.getElementById('project-notice-url').value = '';
     document.getElementById('invitation-message').value = '';
     document.getElementById('notif-matin').value = '08:00';
     document.getElementById('notif-midi').value = '12:30';
@@ -2885,6 +2986,8 @@
     document.getElementById('project-start-date').value = proj.start_date || '';
     document.getElementById('project-access-duration').value = String(proj.access_duration_days || 30);
     document.getElementById('project-contact-email').value = proj.config?.contact_email || '';
+    document.getElementById('project-notice-text').value = proj.config?.notice_text || '';
+    document.getElementById('project-notice-url').value = proj.config?.notice_url || '';
     document.getElementById('invitation-message').value = proj.invitation_message || '';
 
     // Type de recueil
@@ -2939,6 +3042,8 @@
       nutriscore: document.getElementById('toggle-nutriscore')?.classList.contains('on'),
       nova: document.getElementById('toggle-nova')?.classList.contains('on'),
       contact_email: document.getElementById('project-contact-email')?.value.trim() || null,
+      notice_text: document.getElementById('project-notice-text')?.value.trim() || null,
+      notice_url: document.getElementById('project-notice-url')?.value.trim() || null,
       notification_times: {
         matin: document.getElementById('notif-matin')?.value || '08:00',
         midi: document.getElementById('notif-midi')?.value || '12:30',
@@ -3323,7 +3428,7 @@
     if (!currentProfile._pushConfigured) {
       goTo('screen-push-setup');
     } else {
-      goTo('screen-patient-home');
+      goTo('screen-patient-menu');
     }
   }
 
@@ -3439,7 +3544,7 @@
 
       await savePushSubscription(subscription.toJSON(), times, false);
       showToast('Notifications activées ✓', 'success');
-      goTo('screen-patient-home');
+      goTo('screen-patient-menu');
 
     } catch(e) {
       status.style.display = 'block';
@@ -3451,7 +3556,7 @@
   window.skipPushSetup = async function() {
     var times = getPushTimes();
     await savePushSubscription(null, times, false);
-    goTo('screen-patient-home');
+    goTo('screen-patient-menu');
   };
 
   // Modifier les horaires depuis les paramètres patient
@@ -3683,20 +3788,26 @@
   // À compléter à chaque nouvelle version (entrée la plus récente en premier)
   // =============================================
   const CHANGELOG = [
-    { version: '0.12.0', changes: [
+    { version: '0.12.1', date: '2026-11-07', changes: [
+      'Nouvelle page d\'accueil patient à l\'ouverture de l\'application : Recueil alimentaire, Notice d\'information, À propos, Contacts',
+      'La notice d\'information (texte et lien PDF facultatif) se renseigne dans la configuration du projet ; le contact investigateur est affiché dans « Contacts » avec l\'assistance technique',
+      'Historique des mises à jour : la date de réalisation s\'affiche à côté de chaque version',
+      'Barre du bas patient : Accueil, Mon recueil, Profil, Paramètres, Déconnexion (le bouton Contact est dans l\'accueil)'
+    ]},
+    { version: '0.12.0', date: '2026-11-07', changes: [
       'Open Food Facts branché : pour un produit de marque (nom + marque reconnus par l\'IA, ou code-barres lisible sur l\'emballage), l\'appli interroge Open Food Facts et reprend les valeurs de l\'étiquette ainsi que la classification NOVA',
       'Le bouton « Changer la source » permet de chercher un produit par nom ou code-barres dans Open Food Facts, ou une entrée dans CIQUAL',
       'La date de copie des valeurs Open Food Facts est conservée avec le repas (base collaborative qui évolue)',
       'Si le produit n\'est pas retrouvé avec certitude, l\'appli retombe sur CIQUAL puis sur l\'estimation IA, et propose les produits Open Food Facts trouvés'
     ]},
-    { version: '0.11.2', changes: [
+    { version: '0.11.2', date: '2026-10-15', changes: [
       'Nouveau logo (écran d\'accueil et icône de l\'application)'
     ]},
-    { version: '0.11.1', changes: [
+    { version: '0.11.1', date: '2026-10-15', changes: [
       'Interface investigateur en bleu foncé (l\'interface patient reste en vert-bleu) pour distinguer les deux espaces d\'un coup d\'œil',
       'Le bouton « Supprimer » (suppression du compte) n\'est plus dans la barre du bas : il se trouve dans Paramètres › Zone sensible, avec un message détaillant les conséquences et une confirmation par saisie du mot SUPPRIMER'
     ]},
-    { version: '0.11.0', changes: [
+    { version: '0.11.0', date: '2026-10-15', changes: [
       'Les valeurs nutritionnelles viennent désormais réellement de la table CIQUAL 2025 (ANSES, 3 484 aliments) : l\'IA reconnaît l\'aliment et estime la quantité, puis l\'appli recherche l\'aliment dans la table et en reprend les valeurs',
       'Sur chaque aliment, le bouton « Entrée CIQUAL » permet de choisir une autre entrée de la table, de chercher librement, ou de revenir à l\'estimation IA',
       'Si l\'aliment n\'est pas retrouvé dans CIQUAL, les valeurs restent estimées par l\'IA et le badge « ⚠ Estimation IA » l\'indique (avant, ces valeurs étaient affichées à tort avec la mention CIQUAL)',
@@ -3789,7 +3900,7 @@
     const container = document.getElementById('changelog-content');
     container.innerHTML = CHANGELOG.map(entry =>
       '<div style="margin-bottom:16px">' +
-        '<div style="font-weight:700;color:var(--teal);margin-bottom:4px">v' + entry.version + '</div>' +
+        '<div style="font-weight:700;color:var(--teal);margin-bottom:4px">v' + entry.version + (entry.date ? ' <span style="font-weight:400;color:var(--text-light);font-size:12px">· ' + entry.date.split('-').reverse().join('/') + '</span>' : '') + '</div>' +
         '<ul style="margin:0;padding-left:18px;font-size:13px;color:var(--text-mid)">' +
           entry.changes.map(c => '<li style="margin-bottom:3px">' + c + '</li>').join('') +
         '</ul>' +
@@ -4039,6 +4150,42 @@
     }
     goTo('screen-patient-profile');
   }
+  const NSR_SUPPORT_EMAIL = 'lecomte.romain@yahoo.fr';
+
+  function openPatientNotice() {
+    const n = currentNotice || {};
+    document.getElementById('patient-notice-project').textContent = n.name ? 'Projet : ' + n.name : '';
+    const body = document.getElementById('patient-notice-body');
+    const link = document.getElementById('patient-notice-link');
+    body.innerHTML = n.text
+      ? ciqEsc(n.text).replace(/\n/g, '<br>')
+      : (n.url ? '' : '<div class="empty-state"><div class="empty-icon">📄</div><p>La notice d\'information de ce projet n\'a pas encore été publiée dans l\'application.<br>Demandez-la à l\'équipe de recherche (voir Contacts).</p></div>');
+    link.innerHTML = /^https?:\/\//i.test(n.url || '')
+      ? '<a class="btn btn-primary" style="display:block;text-align:center;text-decoration:none" href="' + ciqEsc(n.url) + '" target="_blank" rel="noopener">📎 Ouvrir la notice complète</a>' : '';
+    goTo('screen-patient-notice');
+  }
+
+  function openPatientAbout() {
+    const v = (typeof CHANGELOG !== 'undefined' && CHANGELOG[0]) ? CHANGELOG[0].version : '';
+    document.getElementById('patient-about-version').textContent = 'NutriScanResearch' + (v ? ' · version ' + v : '');
+    goTo('screen-patient-about');
+  }
+
+  function contactCardHtml(label, email, subject) {
+    const e = ciqEsc(email);
+    return '<div class="settings-row" style="display:block"><div style="font-size:12px;color:var(--text-light);margin-bottom:4px">' + ciqEsc(label) + '</div>'
+      + '<div style="font-size:15px;font-weight:600;margin-bottom:10px;word-break:break-all">' + e + '</div>'
+      + '<a class="btn btn-primary" style="display:block;text-align:center;text-decoration:none" href="mailto:' + e + '?subject=' + encodeURIComponent(subject) + '">✉️ Écrire</a></div>';
+  }
+
+  function openPatientContacts() {
+    document.getElementById('contact-investigator').innerHTML = currentContactEmail
+      ? contactCardHtml('Investigateur principal', currentContactEmail, 'NutriScanResearch - Question sur l\'étude')
+      : '<div class="settings-row"><div style="font-size:13.5px;color:var(--text-mid)">L\'adresse de l\'investigateur n\'est pas renseignée pour ce projet. Rapprochez-vous de l\'équipe de recherche qui vous a remis l\'application.</div></div>';
+    document.getElementById('contact-support').innerHTML = contactCardHtml('Assistance technique NutriScanResearch', NSR_SUPPORT_EMAIL, 'NutriScanResearch - Problème technique');
+    goTo('screen-patient-contacts');
+  }
+
   function showContactInfo() {
     if (currentContactEmail) {
       if (confirm('Contacter l\'investigateur ?\n\n' + currentContactEmail + '\n\nOuvrir la messagerie ?')) {
