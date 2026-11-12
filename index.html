@@ -1736,6 +1736,7 @@
         <div class="data-subtab active" id="dsubtab2-compliance" onclick="switchDataSubtab2('compliance')">Compliance</div>
         <div class="data-subtab" id="dsubtab2-apports" onclick="switchDataSubtab2('apports')">Apports</div>
         <div class="data-subtab" id="dsubtab2-repartition" onclick="switchDataSubtab2('repartition')">Répartition</div>
+        <div class="data-subtab" id="dsubtab2-moyennes" onclick="switchDataSubtab2('moyennes')">Qualité moyenne</div>
         <div class="data-subtab" id="dsubtab2-patient" onclick="switchDataSubtab2('patient')">Par patient</div>
         <div class="data-subtab" id="dsubtab2-croise" onclick="switchDataSubtab2('croise')">Vue croisée</div>
         <div class="data-subtab" id="dsubtab2-tableau" onclick="switchDataSubtab2('tableau')">Tableau</div>
@@ -1759,6 +1760,13 @@
       <div id="dview2-repartition" class="content" style="display:none">
         <div id="inv-repartition-content">
           <div class="empty-state"><div class="empty-icon">🥗</div><p>Chargement…</p></div>
+        </div>
+      </div>
+
+      <!-- VUE QUALITÉ MOYENNE (Nutri-Score / NOVA pondérés par l'énergie) -->
+      <div id="dview2-moyennes" class="content" style="display:none">
+        <div id="inv-moyennes-content">
+          <div class="empty-state"><div class="empty-icon">⚖️</div><p>Chargement…</p></div>
         </div>
       </div>
 
@@ -2286,7 +2294,7 @@
           <div class="settings-row-left">
             <div class="settings-icon">ℹ️</div>
             <div>
-              <div class="settings-label">NutriScanResearch v0.12.5</div>
+              <div class="settings-label">NutriScanResearch v0.12.6</div>
               <div class="settings-value">Prototype de recherche — CHU Poitiers</div>
             </div>
           </div>
@@ -3885,6 +3893,11 @@
   // À compléter à chaque nouvelle version (entrée la plus récente en premier)
   // =============================================
   const CHANGELOG = [
+    { version: '0.12.6', date: '2026-11-12', changes: [
+      'Chercheur : nouvel onglet « Qualité moyenne » dans Données — Nutri-Score moyen (score numérique + lettre équivalente + % des kcal par lettre) et NOVA moyen (+ % de l\'énergie par groupe, dont ultra-transformés), pondérés par l\'apport calorique',
+      'Tableau par patient et synthèse du projet (moyenne, médiane, écart-type, min–max des valeurs individuelles)',
+      'Période réglable par un double curseur début / fin (bouton « Tout »)'
+    ] },
     { version: '0.12.5', date: '2026-11-12', changes: [
       'Patient : appui long sur un ou plusieurs repas pour les sélectionner ; un second total (kcal, protéines, lipides, glucides) en orange apparaît sous « Mon bilan du jour »',
       'Disponible uniquement quand le projet autorise l\'affichage du bilan au patient',
@@ -5911,6 +5924,7 @@ JSON uniquement : {"ciqual_nom":"...","marque":null,"nova":1,"emoji":"...","fvl_
     'compliance':   'dview2-compliance',
     'apports':      'dview2-apports',
     'repartition':  'dview2-repartition',
+    'moyennes':     'dview2-moyennes',
     'patient':      'dview-patient',
     'croise':       'dview-croise',
     'tableau':      'dview-tableau'
@@ -5926,7 +5940,252 @@ JSON uniquement : {"ciqual_nom":"...","marque":null,"nova":1,"emoji":"...","fvl_
     if (name === 'compliance') await loadComplianceView();
     else if (name === 'apports') await loadApportsView();
     else if (name === 'repartition') await loadRepartitionView();
+    else if (name === 'moyennes') await loadMoyennesView();
+    // Cette vue a son propre curseur de période : la barre de période commune est masquée
+    var pb = document.getElementById('inv-period-bar');
+    if (pb) pb.style.display = (name === 'moyennes') ? 'none' : '';
+    var pl = document.getElementById('inv-period-label');
+    if (pl) pl.style.display = (name === 'moyennes') ? 'none' : '';
   };
+
+
+  // =============================================
+  // QUALITÉ MOYENNE : Nutri-Score et NOVA moyens, pondérés par l'énergie (kcal)
+  // =============================================
+  var _moyMeals = null;          // repas du projet (cache) : { pid, day, foods:[{kcal, ns, nsLettre, nova}] }
+  var _moyDays = [];             // jours ordonnés ayant au moins un repas
+  var _moyIdxStart = 0, _moyIdxEnd = 0;
+  var _moyProject = null;
+
+  // Prépare un aliment : poids énergétique, score numérique recalculé, lettre, NOVA
+  function _moyPrepFood(f) {
+    var p = f.per100g || {};
+    var kcal = (+p.kcal || 0) * (+f.quantite_g || 0) / 100;
+    var cs = null;
+    try { cs = computeNutriscore({ nom: f.nom, per100g: f.per100g }); } catch (e) { cs = null; }
+    var score = (cs && typeof cs.score === 'number' && !isNaN(cs.score)) ? cs.score : null;
+    var lettre = (cs && cs.lettre) ? cs.lettre : null;
+    if (!lettre && !(cs && (cs.nonApplicable || cs.incomplet)) && f.nutriscore && 'ABCDE'.indexOf(f.nutriscore) !== -1) lettre = f.nutriscore;
+    var alcool = !!(cs && cs.nonApplicable) || isAlcoholicBeverage(f.nom);
+    var nova = (f.nova && [1,2,3,4].indexOf(+f.nova) !== -1) ? +f.nova : null;
+    return { kcal: kcal > 0 ? kcal : 0, score: alcool ? null : score, lettre: alcool ? null : lettre, alcool: alcool, nova: nova };
+  }
+
+  async function _moyFetchAll() {
+    var out = [];
+    var page = 1000, from = 0;
+    while (true) {
+      var { data, error } = await sb.from('meals')
+        .select('id, patient_id, meal_time, skipped, foods(nom, nutriscore, nova, quantite_g, per100g)')
+        .eq('project_id', currentProject)
+        .order('meal_time', { ascending: true })
+        .range(from, from + page - 1);
+      if (error) throw error;
+      out = out.concat(data || []);
+      if (!data || data.length < page) break;
+      from += page;
+    }
+    return out;
+  }
+
+  async function loadMoyennesView() {
+    var container = document.getElementById('inv-moyennes-content');
+    if (!container) return;
+    if (!currentProject || _invPatients.length === 0) {
+      container.innerHTML = '<div class="empty-state"><div class="empty-icon">⚖️</div><p>Aucun patient.</p></div>';
+      return;
+    }
+    if (_moyMeals === null || _moyProject !== currentProject) {
+      container.innerHTML = '<div class="loading-state"><div class="spinner"></div><div class="loading-text">Calcul…</div></div>';
+      try {
+        var raw = await _moyFetchAll();
+        _moyMeals = raw.filter(function(m) { return !m.skipped && m.meal_time; }).map(function(m) {
+          return { pid: m.patient_id, day: String(m.meal_time).slice(0, 10), foods: (m.foods || []).map(_moyPrepFood) };
+        });
+        _moyProject = currentProject;
+        var set = {};
+        _moyMeals.forEach(function(m) { set[m.day] = true; });
+        _moyDays = Object.keys(set).sort();
+        _moyIdxStart = 0;
+        _moyIdxEnd = Math.max(0, _moyDays.length - 1);
+      } catch (e) {
+        console.error('Qualité moyenne', e);
+        container.innerHTML = '<div class="empty-state"><p>Erreur de chargement des repas.</p></div>';
+        return;
+      }
+    }
+    renderMoyennesContent();
+  }
+
+  // Calculs purs (testables) --------------------------------------------
+  function _moyAgg(foodsList) {
+    var kcalTot = 0, nsNum = 0, nsDen = 0, nsKcalByL = { A:0, B:0, C:0, D:0, E:0 }, nsLKcal = 0;
+    var novaNum = 0, novaDen = 0, novaKcal = { 1:0, 2:0, 3:0, 4:0 };
+    var kcalAlcool = 0;
+    foodsList.forEach(function(x) {
+      kcalTot += x.kcal;
+      if (x.alcool) kcalAlcool += x.kcal;
+      if (x.score !== null) { nsNum += x.score * x.kcal; nsDen += x.kcal; }
+      if (x.lettre && !x.alcool) { nsKcalByL[x.lettre] += x.kcal; nsLKcal += x.kcal; }
+      if (x.nova !== null) { novaNum += x.nova * x.kcal; novaDen += x.kcal; novaKcal[x.nova] += x.kcal; }
+    });
+    return {
+      kcalTot: kcalTot,
+      nsMean: nsDen > 0 ? nsNum / nsDen : null,
+      nsCover: kcalTot > 0 ? nsDen / kcalTot : 0,       // part de l'énergie ayant un score numérique
+      nsPctByL: nsLKcal > 0 ? ['A','B','C','D','E'].reduce(function(o, l) { o[l] = 100 * nsKcalByL[l] / nsLKcal; return o; }, {}) : null,
+      alcoolPct: kcalTot > 0 ? 100 * kcalAlcool / kcalTot : 0,
+      novaMean: novaDen > 0 ? novaNum / novaDen : null,
+      novaCover: kcalTot > 0 ? novaDen / kcalTot : 0,
+      novaPct: novaDen > 0 ? [1,2,3,4].reduce(function(o, g) { o[g] = 100 * novaKcal[g] / novaDen; return o; }, {}) : null
+    };
+  }
+
+  function _moyStats(vals) {
+    var v = vals.filter(function(x) { return x !== null && !isNaN(x); }).sort(function(a, b) { return a - b; });
+    var n = v.length;
+    if (!n) return { n: 0, mean: null, median: null, sd: null, min: null, max: null };
+    var mean = v.reduce(function(a, b) { return a + b; }, 0) / n;
+    var median = n % 2 ? v[(n - 1) / 2] : (v[n / 2 - 1] + v[n / 2]) / 2;
+    var sd = n > 1 ? Math.sqrt(v.reduce(function(a, b) { return a + (b - mean) * (b - mean); }, 0) / (n - 1)) : null;
+    return { n: n, mean: mean, median: median, sd: sd, min: v[0], max: v[n - 1] };
+  }
+
+  function _moyCompute(startDay, endDay) {
+    var byPid = {};
+    _invPatients.forEach(function(p) { byPid[p.patient_id] = []; });
+    _moyMeals.forEach(function(m) {
+      if (m.day < startDay || m.day > endDay) return;
+      if (!byPid[m.pid]) return;
+      m.foods.forEach(function(x) { byPid[m.pid].push(x); });
+    });
+    var rows = _invPatients.map(function(p) {
+      var a = _moyAgg(byPid[p.patient_id]);
+      a.pid = p.patient_id; a.identifier = p.identifier;
+      return a;
+    });
+    var all = []; Object.keys(byPid).forEach(function(k) { all = all.concat(byPid[k]); });
+    return {
+      rows: rows,
+      pooled: _moyAgg(all),
+      nsStats: _moyStats(rows.map(function(r) { return r.nsMean; })),
+      novaStats: _moyStats(rows.map(function(r) { return r.novaMean; })),
+      upfStats: _moyStats(rows.map(function(r) { return r.novaPct ? r.novaPct[4] : null; }))
+    };
+  }
+
+  // Affichage ------------------------------------------------------------
+  var _MOY_NS_COL = { A:'#038141', B:'#85BB2F', C:'#FECB02', D:'#EE8100', E:'#E63E11' };
+  var _MOY_NOVA_COL = { 1:'#2E7D32', 2:'#F57F17', 3:'#E65100', 4:'#B71C1C' };
+  function _moyF(x, d) { return x === null || x === undefined || isNaN(x) ? '—' : x.toFixed(d === undefined ? 1 : d).replace('.', ','); }
+  function _moyFmtDay(d) { return d ? d.slice(8, 10) + '/' + d.slice(5, 7) + '/' + d.slice(0, 4) : ''; }
+  function _moyNsBadge(score) {
+    if (score === null) return '<span style="color:var(--text-light)">—</span>';
+    var l = nsLetter(score);
+    return '<span style="display:inline-block;min-width:22px;text-align:center;padding:1px 6px;border-radius:5px;font-weight:700;color:' + (l === 'C' ? '#333' : '#fff') + ';background:' + _MOY_NS_COL[l] + '">' + l + '</span>';
+  }
+  function _moyStack(pctObj, cols, keys) {
+    if (!pctObj) return '<div style="height:12px;background:var(--bg);border-radius:6px"></div>';
+    return '<div style="display:flex;height:12px;border-radius:6px;overflow:hidden;background:var(--bg)">' +
+      keys.map(function(k) {
+        var w = pctObj[k] || 0;
+        return w > 0 ? '<div title="' + k + ' : ' + _moyF(w, 0) + ' %" style="width:' + w + '%;background:' + cols[k] + '"></div>' : '';
+      }).join('') + '</div>';
+  }
+  function _moyLegend(pctObj, cols, keys, prefix) {
+    if (!pctObj) return '';
+    return '<div style="display:flex;flex-wrap:wrap;gap:4px 10px;font-size:11px;color:var(--text-light);margin-top:4px">' +
+      keys.map(function(k) {
+        return '<span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:' + cols[k] + ';margin-right:3px"></span>' + prefix + k + ' ' + _moyF(pctObj[k], 0) + ' %</span>';
+      }).join('') + '</div>';
+  }
+
+  window._moySetRange = function(which, val) {
+    val = parseInt(val, 10);
+    if (which === 'start') { _moyIdxStart = Math.min(val, _moyIdxEnd); }
+    else { _moyIdxEnd = Math.max(val, _moyIdxStart); }
+    renderMoyennesContent();
+  };
+  window._moyAll = function() { _moyIdxStart = 0; _moyIdxEnd = Math.max(0, _moyDays.length - 1); renderMoyennesContent(); };
+
+  function renderMoyennesContent() {
+    var container = document.getElementById('inv-moyennes-content');
+    if (!container) return;
+    if (!_moyDays.length) {
+      container.innerHTML = '<div class="empty-state"><div class="empty-icon">⚖️</div><p>Aucun repas enregistré dans ce projet.</p></div>';
+      return;
+    }
+    var last = _moyDays.length - 1;
+    var d0 = _moyDays[_moyIdxStart], d1 = _moyDays[_moyIdxEnd];
+    var R = _moyCompute(d0, d1);
+    var P = R.pooled;
+
+    var sliderHtml =
+      '<div class="card" style="padding:14px;margin-bottom:14px">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">' +
+      '<div style="font-size:13px;font-weight:600">Période : ' + _moyFmtDay(d0) + ' → ' + _moyFmtDay(d1) + '</div>' +
+      '<div class="day-chip' + (_moyIdxStart === 0 && _moyIdxEnd === last ? ' active' : '') + '" onclick="_moyAll()">Tout</div></div>' +
+      '<div style="font-size:11px;color:var(--text-light);margin-bottom:4px">Début</div>' +
+      '<input type="range" min="0" max="' + last + '" value="' + _moyIdxStart + '" oninput="_moySetRange(\'start\', this.value)" style="width:100%" />' +
+      '<div style="font-size:11px;color:var(--text-light);margin:6px 0 4px">Fin</div>' +
+      '<input type="range" min="0" max="' + last + '" value="' + _moyIdxEnd + '" oninput="_moySetRange(\'end\', this.value)" style="width:100%" />' +
+      '<div style="font-size:11px;color:var(--text-light);margin-top:6px">Le curseur parcourt les jours ayant au moins un repas (' + _moyFmtDay(_moyDays[0]) + ' → ' + _moyFmtDay(_moyDays[last]) + ').</div>' +
+      '</div>';
+
+    if (P.kcalTot <= 0) {
+      container.innerHTML = sliderHtml + '<div class="empty-state"><p>Aucun apport énergétique sur cette période.</p></div>';
+      return;
+    }
+
+    function statLine(st, d) {
+      if (!st.n) return '—';
+      return 'moy. <b>' + _moyF(st.mean, d) + '</b> · méd. ' + _moyF(st.median, d) + ' · ET ' + _moyF(st.sd, d) + ' · [' + _moyF(st.min, d) + ' ; ' + _moyF(st.max, d) + ']';
+    }
+
+    var synth =
+      '<div class="section-label">Synthèse du projet <span style="font-weight:400;color:var(--text-light)">(' + R.nsStats.n + ' patient' + (R.nsStats.n > 1 ? 's' : '') + ' avec données ; chaque patient pèse autant)</span></div>' +
+      '<div class="card" style="padding:14px;margin-bottom:14px">' +
+      '<div style="margin-bottom:12px"><div style="font-size:12px;color:var(--text-light)">Nutri-Score moyen (score numérique, pondéré par les kcal)</div>' +
+      '<div style="font-size:13px;margin-top:2px">' + _moyNsBadge(R.nsStats.mean) + ' &nbsp;' + statLine(R.nsStats, 1) + '</div></div>' +
+      '<div style="margin-bottom:12px"><div style="font-size:12px;color:var(--text-light)">NOVA moyen (1–4, pondéré par les kcal)</div>' +
+      '<div style="font-size:13px;margin-top:2px">' + statLine(R.novaStats, 2) + '</div></div>' +
+      '<div><div style="font-size:12px;color:var(--text-light)">% de l\'énergie issu d\'aliments ultra-transformés (NOVA 4)</div>' +
+      '<div style="font-size:13px;margin-top:2px">' + statLine(R.upfStats, 0) + ' (en %)</div></div>' +
+      '</div>';
+
+    var pooled =
+      '<div class="section-label">Répartition de l\'énergie (tous patients confondus)</div>' +
+      '<div class="card" style="padding:14px;margin-bottom:14px">' +
+      '<div style="font-size:12px;margin-bottom:3px">Nutri-Score — % des kcal' + (P.alcoolPct > 0 ? ' <span style="color:var(--text-light)">(hors alcool : ' + _moyF(P.alcoolPct, 0) + ' % des kcal)</span>' : '') + '</div>' +
+      _moyStack(P.nsPctByL, _MOY_NS_COL, ['A','B','C','D','E']) + _moyLegend(P.nsPctByL, _MOY_NS_COL, ['A','B','C','D','E'], '') +
+      '<div style="font-size:12px;margin:12px 0 3px">NOVA — % des kcal</div>' +
+      _moyStack(P.novaPct, _MOY_NOVA_COL, [1,2,3,4]) + _moyLegend(P.novaPct, _MOY_NOVA_COL, [1,2,3,4], 'NOVA ') +
+      '</div>';
+
+    var table =
+      '<div class="section-label">Par patient</div>' +
+      '<div class="card" style="padding:0;overflow-x:auto;margin-bottom:14px"><table style="width:100%;border-collapse:collapse;font-size:12px">' +
+      '<thead><tr style="text-align:left;color:var(--text-light);border-bottom:1px solid var(--border)">' +
+      '<th style="padding:8px">Patient</th><th style="padding:8px">kcal</th><th style="padding:8px">Nutri-Score</th><th style="padding:8px">NOVA</th><th style="padding:8px">% NOVA 4</th></tr></thead><tbody>' +
+      R.rows.map(function(r) {
+        var low = r.kcalTot > 0 && (r.nsCover < 0.8 || r.novaCover < 0.8);
+        return '<tr style="border-bottom:1px solid var(--border)">' +
+          '<td style="padding:8px;font-weight:600">' + r.identifier + '</td>' +
+          '<td style="padding:8px">' + (r.kcalTot > 0 ? Math.round(r.kcalTot) : '—') + '</td>' +
+          '<td style="padding:8px">' + _moyNsBadge(r.nsMean) + ' <span style="color:var(--text-light)">' + _moyF(r.nsMean, 1) + '</span>' + (low ? ' <span title="Moins de 80 % de l\'énergie est classée" style="color:#E65100">⚠</span>' : '') + '</td>' +
+          '<td style="padding:8px">' + _moyF(r.novaMean, 2) + '</td>' +
+          '<td style="padding:8px">' + (r.novaPct ? _moyF(r.novaPct[4], 0) + ' %' : '—') + '</td></tr>';
+      }).join('') + '</tbody></table></div>';
+
+    var coverTxt = 'Couverture sur la période : ' + _moyF(100 * P.nsCover, 0) + ' % de l\'énergie a un score Nutri-Score calculable, ' + _moyF(100 * P.novaCover, 0) + ' % a un groupe NOVA.';
+    var notes =
+      '<div style="font-size:11px;color:var(--text-light);line-height:1.5">' +
+      '<b>Méthode.</b> Moyenne pondérée par l\'énergie de chaque aliment (kcal pour 100 g × quantité). Nutri-Score : score numérique (algorithme 2023 recalculé) ; la lettre affichée est l\'équivalent de la moyenne selon l\'échelle générale (A &lt; 1, B &lt; 3, C &lt; 11, D &lt; 19, E ≥ 19) et reste une approximation : le Nutri-Score est conçu pour comparer des produits, pas pour caractériser un régime. Les boissons ont une échelle propre, ici mêlée à l\'échelle générale ; l\'eau et l\'alcool sont exclus du score. Aliments sans donnée nutritionnelle suffisante exclus. ' +
+      'NOVA : pour les produits identifiés dans Open Food Facts le groupe est celui de la base ; pour les aliments génériques c\'est une estimation de l\'IA. Les repas saisis avant la v0.12.4 peuvent porter un NOVA ou un Nutri-Score obsolète. ' + coverTxt +
+      '</div>';
+
+    container.innerHTML = sliderHtml + synth + pooled + table + notes;
+  }
 
   // Keep old switchDataSubtab for any residual calls
   window.switchDataSubtab = window.switchDataSubtab2;
