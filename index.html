@@ -642,6 +642,14 @@
     grid-template-columns: repeat(4, 1fr);
     gap: 8px;
   }
+  /* Sélection de repas (appui long) : total distinct du bilan du jour (teinte ambrée) */
+  .meal-item { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+  .meal-item.selected { background: #FFF4E0; box-shadow: inset 4px 0 0 #E08A00; }
+  .meal-item.selected .sel-check { display: inline-flex; }
+  .sel-check { display: none; width: 22px; height: 22px; border-radius: 50%; background: #E08A00; color: #fff; font-size: 13px; font-weight: 700; align-items: center; justify-content: center; flex-shrink: 0; }
+  .selection-widget { background: linear-gradient(135deg, #B35F00, #E08A00); color: #fff; border-radius: var(--radius); padding: 16px 18px; box-shadow: 0 2px 8px rgba(179,95,0,.25); }
+  .selection-widget h3 { font-size: 13px; font-weight: 600; opacity: .9; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .selection-clear { background: rgba(255,255,255,.2); color: #fff; border: none; border-radius: 12px; padding: 4px 10px; font-size: 11px; font-family: inherit; cursor: pointer; }
   .macro-item { text-align: center; }
   .macro-value { font-size: 18px; font-weight: 600; }
   .macro-sub { font-size: 10px; opacity: 0.65; margin-top: 1px; }
@@ -1603,6 +1611,7 @@
       <div class="day-strip" id="patient-day-strip" style="margin-bottom:4px"></div>
       <!-- Label dynamique -->
       <div class="section-label" id="patient-meals-label" style="margin-bottom:8px">Mes repas d'aujourd'hui</div>
+      <div id="patient-select-hint" style="display:none;font-size:11.5px;color:var(--text-light);margin:-4px 0 8px">💡 Appui long sur un repas pour le sélectionner et voir le total des repas choisis.</div>
       <div id="patient-meals-list">
         <div class="empty-state">
           <div class="empty-icon">🍽️</div>
@@ -1622,6 +1631,19 @@
             <div class="macro-item"><div class="macro-value" id="bilan-prot">0g</div><div class="macro-label">Protéines</div></div>
             <div class="macro-item"><div class="macro-value" id="bilan-lip">0g</div><div class="macro-label">Lipides</div></div>
             <div class="macro-item"><div class="macro-value" id="bilan-gluc">0g</div><div class="macro-label">Glucides</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Total des repas sélectionnés (appui long) -->
+      <div id="patient-selection" style="display:none;margin-top:14px">
+        <div class="selection-widget">
+          <h3><span id="selection-title">Repas sélectionnés</span><button class="selection-clear" onclick="clearMealSelection()">✕ Désélectionner</button></h3>
+          <div class="summary-macros">
+            <div class="macro-item"><div class="macro-value" id="sel-kcal">0</div><div class="macro-sub">kcal</div><div class="macro-label">Énergie</div></div>
+            <div class="macro-item"><div class="macro-value" id="sel-prot">0g</div><div class="macro-label">Protéines</div></div>
+            <div class="macro-item"><div class="macro-value" id="sel-lip">0g</div><div class="macro-label">Lipides</div></div>
+            <div class="macro-item"><div class="macro-value" id="sel-gluc">0g</div><div class="macro-label">Glucides</div></div>
           </div>
         </div>
       </div>
@@ -2264,7 +2286,7 @@
           <div class="settings-row-left">
             <div class="settings-icon">ℹ️</div>
             <div>
-              <div class="settings-label">NutriScanResearch v0.12.4</div>
+              <div class="settings-label">NutriScanResearch v0.12.5</div>
               <div class="settings-value">Prototype de recherche — CHU Poitiers</div>
             </div>
           </div>
@@ -2600,7 +2622,7 @@
             currentShowBilan = !!proj.config?.showBilan;
             currentTrackedNutrients = Array.isArray(proj.config?.nutrients) ? proj.config.nutrients : [];
             currentDatabases = { ciqual: proj.config?.databases?.ciqual !== false, off: proj.config?.databases?.off !== false };
-            if (currentShowBilan) document.getElementById('patient-bilan').style.display = 'block';
+            if (currentShowBilan) { document.getElementById('patient-bilan').style.display = 'block'; const h = document.getElementById('patient-select-hint'); if (h) h.style.display = 'block'; }
             const tag = 'PROJET ' + (proj.name || '').toUpperCase();
             const mt = document.getElementById('menu-project-tag'); if (mt) mt.textContent = tag;
             currentNotice = { name: proj.name || '', text: proj.config?.notice_text || '', url: proj.config?.notice_url || '' };
@@ -3576,7 +3598,66 @@
   // =============================================
   // REPAS PATIENT — CHARGEMENT
   // =============================================
+  // ----- Sélection de repas par appui long (total distinct du bilan du jour) -----
+  const selectedMealIds = new Set();
+  let patientMealMacros = {};
+  let _lpTimer = null, _lpFired = false, _lpStart = null;
+
+  function mealPress(ev, id) {
+    if (!currentShowBilan) return;                        // les apports ne sont montrés au patient que si le projet l'autorise
+    _lpFired = false;
+    _lpStart = { x: ev.clientX, y: ev.clientY };
+    clearTimeout(_lpTimer);
+    _lpTimer = setTimeout(() => {
+      _lpFired = true;
+      toggleMealSelection(id);
+      if (navigator.vibrate) { try { navigator.vibrate(30); } catch (e) {} }
+    }, 450);
+  }
+  function mealPressMove(ev) {
+    if (!_lpTimer || !_lpStart) return;
+    if (Math.abs(ev.clientX - _lpStart.x) > 10 || Math.abs(ev.clientY - _lpStart.y) > 10) { clearTimeout(_lpTimer); _lpTimer = null; }
+  }
+  function mealPressEnd() { clearTimeout(_lpTimer); _lpTimer = null; }
+
+  /** Clic sur un repas : ouvre le repas, sauf après un appui long ou en mode sélection (le clic bascule alors la sélection). */
+  function mealClick(id) {
+    if (_lpFired) { _lpFired = false; return; }
+    if (selectedMealIds.size > 0) { toggleMealSelection(id); return; }
+    openMealView(id);
+  }
+
+  function toggleMealSelection(id) {
+    if (selectedMealIds.has(id)) selectedMealIds.delete(id); else selectedMealIds.add(id);
+    const el = document.querySelector('.meal-item[data-meal-id="' + id + '"]');
+    if (el) el.classList.toggle('selected', selectedMealIds.has(id));
+    updateSelectionTotals();
+    if (selectedMealIds.size === 1 && selectedMealIds.has(id)) showToast('Repas sélectionné', 'info', 1200);
+  }
+
+  function clearMealSelection() {
+    selectedMealIds.clear();
+    document.querySelectorAll('.meal-item.selected').forEach(e => e.classList.remove('selected'));
+    updateSelectionTotals();
+  }
+
+  function updateSelectionTotals() {
+    const box = document.getElementById('patient-selection');
+    if (!box) return;
+    if (!currentShowBilan || selectedMealIds.size === 0) { box.style.display = 'none'; return; }
+    let k = 0, p = 0, l = 0, g = 0;
+    selectedMealIds.forEach(id => { const m = patientMealMacros[id]; if (m) { k += m.kcal; p += m.prot; l += m.lip; g += m.gluc; } });
+    const r1 = x => Math.round(x * 10) / 10;
+    document.getElementById('sel-kcal').textContent = Math.round(k);
+    document.getElementById('sel-prot').textContent = r1(p) + 'g';
+    document.getElementById('sel-lip').textContent = r1(l) + 'g';
+    document.getElementById('sel-gluc').textContent = r1(g) + 'g';
+    document.getElementById('selection-title').textContent = selectedMealIds.size + (selectedMealIds.size > 1 ? ' repas sélectionnés' : ' repas sélectionné');
+    box.style.display = 'block';
+  }
+
   async function loadPatientMeals(date) {
+    selectedMealIds.clear(); patientMealMacros = {};       // la sélection est propre à la journée affichée
     const today = new Date().toISOString().split('T')[0];
     const targetDate = date || selectedDay || today;
     if (!selectedDay) selectedDay = today;
@@ -3598,6 +3679,10 @@
 
     if (!meals || meals.length === 0) {
       list.innerHTML = `<div class="empty-state"><div class="empty-icon">🍽️</div><p>Aucun repas enregistré aujourd'hui.<br>Photographiez ou saisissez votre premier repas.</p></div>`;
+      if (document.getElementById('bilan-kcal')) {   // remet le bilan à zéro (il gardait les totaux de la journée précédente)
+        ['bilan-kcal', 'bilan-prot', 'bilan-lip', 'bilan-gluc'].forEach((id, i) => { document.getElementById(id).textContent = i === 0 ? '0' : '0g'; });
+      }
+      updateSelectionTotals();
       return;
     }
 
@@ -3629,6 +3714,7 @@
       totalProt += Math.round(mProt * 10) / 10;
       totalLip  += Math.round(mLip  * 10) / 10;
       totalGluc += Math.round(mGluc * 10) / 10;
+      patientMealMacros[m.id] = { kcal: mKcal, prot: mProt, lip: mLip, gluc: mGluc };
       const kcal = mKcal;
       const time = m.meal_time ? new Date(m.meal_time).toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit'}) : '';
       const foodsPreview = m.foods?.slice(0,3).map(f => f.emoji||'🍽').join(' ') || '';
@@ -3639,19 +3725,23 @@
            </div>`
         : '';
       return `
-        <div class="meal-item" onclick="openMealView('${m.id}')">
+        <div class="meal-item" data-meal-id="${m.id}" onclick="mealClick('${m.id}')"
+             onpointerdown="mealPress(event,'${m.id}')" onpointermove="mealPressMove(event)" onpointerup="mealPressEnd()" onpointercancel="mealPressEnd()" onpointerleave="mealPressEnd()"
+             oncontextmenu="return ${currentShowBilan ? 'false' : 'true'}">
           <div class="meal-time-badge ${mealClasses[m.meal_type]||'autre'}">${mealIcons[m.meal_type]||'🕐'}</div>
           <div class="meal-info">
             <div class="meal-title">${mealLabels[m.meal_type]||'Repas'}</div>
             <div class="meal-sub">${time}${m.location?' · '+m.location:''} ${foodsPreview}</div>
           </div>
-          <div style="display:flex;align-items:center;gap:4px">
+          <div style="display:flex;align-items:center;gap:6px">
             ${macrosBlock}
+            <span class="sel-check">✓</span>
             <span style="color:var(--text-light);font-size:16px">›</span>
           </div>
         </div>`;
     }).join('');
 
+    updateSelectionTotals();
     // Mettre à jour le bilan
     if (document.getElementById('bilan-kcal')) {
       document.getElementById('bilan-kcal').textContent = totalKcal;
@@ -3795,6 +3885,11 @@
   // À compléter à chaque nouvelle version (entrée la plus récente en premier)
   // =============================================
   const CHANGELOG = [
+    { version: '0.12.5', date: '2026-11-12', changes: [
+      'Patient : appui long sur un ou plusieurs repas pour les sélectionner ; un second total (kcal, protéines, lipides, glucides) en orange apparaît sous « Mon bilan du jour »',
+      'Disponible uniquement quand le projet autorise l\'affichage du bilan au patient',
+      'Correction : le bilan du jour repassait à zéro seulement si des repas existaient (il gardait les totaux de la veille sur un jour sans repas)'
+    ]},
     { version: '0.12.4', date: '2026-11-12', changes: [
       'NOVA : consigne plus précise donnée à l\'IA (pain et fromages = groupe 3, farines et flocons d\'avoine = groupe 1…) et garde-fous qui relèvent le groupe pour les cas non ambigus',
       'NOVA : lors d\'une correction ou d\'un ajout d\'aliment, le groupe est recalculé pour le nouvel aliment (il conservait celui de l\'aliment précédent)'
