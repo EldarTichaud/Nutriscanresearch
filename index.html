@@ -2264,7 +2264,7 @@
           <div class="settings-row-left">
             <div class="settings-icon">ℹ️</div>
             <div>
-              <div class="settings-label">NutriScanResearch v0.12.3</div>
+              <div class="settings-label">NutriScanResearch v0.12.4</div>
               <div class="settings-value">Prototype de recherche — CHU Poitiers</div>
             </div>
           </div>
@@ -3795,6 +3795,10 @@
   // À compléter à chaque nouvelle version (entrée la plus récente en premier)
   // =============================================
   const CHANGELOG = [
+    { version: '0.12.4', date: '2026-11-12', changes: [
+      'NOVA : consigne plus précise donnée à l\'IA (pain et fromages = groupe 3, farines et flocons d\'avoine = groupe 1…) et garde-fous qui relèvent le groupe pour les cas non ambigus',
+      'NOVA : lors d\'une correction ou d\'un ajout d\'aliment, le groupe est recalculé pour le nouvel aliment (il conservait celui de l\'aliment précédent)'
+    ]},
     { version: '0.12.3', date: '2026-11-12', changes: [
       'À propos : présentation de l\'application rendue générique (utilisable dans un projet de recherche)'
     ]},
@@ -4263,7 +4267,7 @@
     const trackNV = dbs.off && document.getElementById('toggle-nova')?.classList.contains('on');
     const extraFields = [
       trackNS ? '"nutriscore": "A" à "E" (lettre unique, null si inconnu)' : '',
-      trackNV ? '"nova": groupe NOVA (1=brut/peu transformé, 2=ingrédient culinaire ex:sucre/sel/huile, 3=transformé, 4=ultra-transformé) — entier 1-4, null si vraiment inconnu' : '',
+      trackNV ? '"nova": ' + NOVA_GUIDE + ' null si vraiment inconnu' : '',
     ].filter(Boolean);
 
     const extraSchema = {};
@@ -4304,31 +4308,40 @@ Règles : confiance 1-5, quantite_g estimation visuelle (c'est ta contribution p
   // =============================================
   // NOVA 2 : ingrédients culinaires (sucre, sel, huiles, farines, vinaigres, beurre…)
   // NOVA 4 : ultra-transformés connus (sodas, chips, biscuits industriels, nuggets…)
-  const NOVA2_TERMS = [
-    'sucre','sugar','sel ','salt','huile','oil','beurre','butter','farine','flour',
-    'fécule','amidon','starch','vinaigre','vinegar','crème fraîche','sirop','syrup',
-    'miel','honey','margarine','saindoux','lard','ghee','levure chimique',
-    'bicarbonate','gélatine','agar'
-  ];
-  const NOVA4_TERMS = [
-    'soda','cola','chips','biscuit','cookie','nugget','cordon bleu',
-    'pizza surgelée','plat préparé','sauce industrielle','ketchup','mayonnaise industrielle',
-    'céréales petit-déjeuner','barre chocolatée','candy','bonbon','charcuterie','saucisse',
-    'jambon','hot-dog','hamburger','burger','panini industriel'
-  ];
+  // Classification NOVA — garde-fous appliqués après l'avis de l'IA (qui reste l'estimation de départ).
+  // Un garde-fou ne fait que RELEVER le groupe (jamais l'abaisser) pour les cas non ambigus.
+  const NOVA_B = '(?<![a-zà-ÿ])';          // début de mot
+  const NOVA_E = '(?![a-zà-ÿ])';           // fin de mot
+  const novaRe = (list) => new RegExp(NOVA_B + '(?:' + list.join('|') + ')' + NOVA_E);
+  // Groupe 2 : l'aliment EST un ingrédient culinaire (nom commençant par…)
+  const NOVA2_RE = new RegExp('^(?:sucre|sel|huile|beurre|vinaigre|miel|sirop|margarine|saindoux|ghee|f[ée]cule|amidon|levure|bicarbonate|g[ée]latine|agar)' + NOVA_E);
+  // Groupe 3 minimum : aliments transformés « classiques » (pain, fromages, conserves, produits fermentés, saumurés)
+  const NOVA3_RE = novaRe(['pain', 'baguette', 'biscottes?', 'fromages?', 'emmental', 'comt[ée]', 'camembert', 'brie', 'gruy[eè]re', 'parmesan', 'roquefort', 'mozzarella',
+    'feta', 'raclette', 'reblochon', 'cantal', 'mimolette', 'edam', 'gouda', 'cheddar', 'maroilles', 'munster', 'morbier', 'tomme', 'crottin', 'saint-nectaire',
+    'livarot', 'pont-l.[ée]v[êe]que', 'conserves?', 'en bo[iî]te', 'au sirop', 'saumon fum[ée]', 'olives?', 'cornichons?', 'pickles', 'choucroute',
+    'vin', 'bi[èe]re', 'cidre', 'p[âa]t[ée]', 'rillettes']);
+  // …sauf fromages frais / blancs, plus proches du groupe 1
+  const NOVA3_EXCL_RE = novaRe(['fromage blanc', 'fromage frais', 'faisselle', 'petits?-suisses?', 'cottage', 'quark', 'skyr', 'fromage r[âa]p[ée]? ?(?:rien)', 'cr[èe]me']);
+  const NOVA4_RE = novaRe(['soda', 'cola', 'chips', 'biscuits?', 'cookies?', 'nuggets?', 'cordon bleu', 'pizza surgel[ée]e', 'plat pr[ée]par[ée]', 'sauce industrielle',
+    'ketchup', 'mayonnaise industrielle', 'c[ée]r[ée]ales petit-d[ée]jeuner', 'barre chocolat[ée]e', 'candy', 'bonbons?', 'charcuterie', 'saucisses?', 'jambon',
+    'hot-dog', 'hamburger', 'burger', 'panini industriel']);
 
   function correctNova(nom, novaFromAI) {
     if (!nom) return novaFromAI;
-    const n = nom.toLowerCase();
-    // NOVA 4 prioritaire
-    if (NOVA4_TERMS.some(t => n.includes(t))) return Math.max(novaFromAI || 0, 4);
-    // NOVA 2 minimum si ingrédient culinaire
-    if (NOVA2_TERMS.some(t => n.includes(t))) {
-      // Ne pas rétrograder un NOVA 3 ou 4 vers 2
-      return Math.max(novaFromAI || 2, 2);
-    }
+    const n = String(nom).toLowerCase();
+    if (NOVA4_RE.test(n)) return Math.max(novaFromAI || 0, 4);
+    if (NOVA2_RE.test(n.trim())) return Math.max(novaFromAI || 2, 2);
+    if (NOVA3_RE.test(n) && !NOVA3_EXCL_RE.test(n)) return Math.max(novaFromAI || 3, 3);
     return novaFromAI;
   }
+
+  // Consigne NOVA donnée à l'IA (définitions de Monteiro et al., avec les cas qui prêtent le plus à erreur)
+  const NOVA_GUIDE = 'groupe NOVA, entier 1 à 4. '
+    + '1 = aliments bruts ou simplement transformés sans ajout : fruits, légumes, viandes/poissons/œufs frais ou surgelés nature, lait, yaourt nature, riz, pâtes sèches, flocons d\'avoine, farines, légumineuses, café, thé, eau. '
+    + '2 = ingrédients culinaires utilisés pour cuisiner : huile, beurre, sucre, sel, miel, vinaigre, amidon. '
+    + '3 = aliments transformés (aliments du groupe 1 + sel, sucre, huile, fermentation, conservation) : PAIN (boulanger ou maison), FROMAGES, conserves, saumon fumé, olives, cornichons, vin, bière, cidre. '
+    + '4 = ultra-transformés (additifs, arômes, émulsifiants, ingrédients industriels) : sodas, biscuits, céréales soufflées du petit-déjeuner, pain de mie industriel, plats préparés, nuggets, charcuterie industrielle, desserts lactés aromatisés, glaces, barres, sauces industrielles. '
+    + 'Pour un produit industriel de marque, choisis 4 s\'il contient des additifs ou ingrédients industriels ; pour un plat fait maison ou artisanal, 3 au plus.';
 
   function retryManualMeal() {
     if (_lastManualMealText) analyzeManualMeal(_lastManualMealText);
@@ -4568,7 +4581,8 @@ Règles : confiance 1-5, quantite_g estimation visuelle (c'est ta contribution p
           messages: [{ role: 'user', content:
             `Bases actives : ${dbs}. ${dbs.includes('CIQUAL')&&dbs.includes('OFF') ? 'Priorité CIQUAL pour aliments génériques, OFF pour produits de marque.' : ''}
 Donne les valeurs nutritionnelles pour 100g de : "${newName}". Donne aussi ciqual_nom = intitulé le plus probable dans la table CIQUAL (ex : "Pomme, crue") et marque = marque commerciale si c\'est un produit industriel identifiable, sinon null. fvl_pct = % de fruits, légumes et légumineuses dans le produit tel que mangé (0-100 ; hors pommes de terre, fruits à coque, graines, huiles ; 100 pour un fruit ou légume nature ou un jus pur fruit). edulcorant = true seulement si une boisson contient des édulcorants non nutritifs (aspartame, acésulfame K, sucralose, stévia, saccharine ; pas les polyols). ns_cat = "boisson" (eau, lait, boisson végétale, jus, soda, thé, café), "eau" (eau nature seule), "fromage" (hors fromage blanc), "viande_rouge" (bœuf, veau, agneau, porc, charcuterie) ou "general".
-JSON uniquement : {"ciqual_nom":"...","marque":null,"emoji":"...","fvl_pct":0,"edulcorant":false,"ns_cat":"general","per100g":{"kcal":0,"prot":0,"lip":0,"gluc":0,"sucres":0,"ag_sat":0,"fibres":0,"eau":0,"sel":0,"ca":0,"fe":0,"vitC":0,"vitD":0,"vitB12":0,"folates":0,"mg":0,"zn":0,"k":0,"omega3":0}}`
+nova = ${NOVA_GUIDE}
+JSON uniquement : {"ciqual_nom":"...","marque":null,"nova":1,"emoji":"...","fvl_pct":0,"edulcorant":false,"ns_cat":"general","per100g":{"kcal":0,"prot":0,"lip":0,"gluc":0,"sucres":0,"ag_sat":0,"fibres":0,"eau":0,"sel":0,"ca":0,"fe":0,"vitC":0,"vitD":0,"vitB12":0,"folates":0,"mg":0,"zn":0,"k":0,"omega3":0}}`
           }]
         })
       });
@@ -4602,7 +4616,8 @@ JSON uniquement : {"ciqual_nom":"...","marque":null,"emoji":"...","fvl_pct":0,"e
           messages: [{ role: 'user', content:
             `Bases actives : ${dbs}. ${dbs.includes('CIQUAL')&&dbs.includes('OFF') ? 'Priorité CIQUAL pour aliments génériques, OFF pour produits de marque.' : ''}
 Donne les valeurs nutritionnelles pour 100g de : "${name}". Donne aussi ciqual_nom = intitulé le plus probable dans la table CIQUAL (ex : "Pomme, crue") et marque = marque commerciale si c\'est un produit industriel identifiable, sinon null. fvl_pct = % de fruits, légumes et légumineuses dans le produit tel que mangé (0-100 ; hors pommes de terre, fruits à coque, graines, huiles ; 100 pour un fruit ou légume nature ou un jus pur fruit). edulcorant = true seulement si une boisson contient des édulcorants non nutritifs (aspartame, acésulfame K, sucralose, stévia, saccharine ; pas les polyols). ns_cat = "boisson" (eau, lait, boisson végétale, jus, soda, thé, café), "eau" (eau nature seule), "fromage" (hors fromage blanc), "viande_rouge" (bœuf, veau, agneau, porc, charcuterie) ou "general".
-JSON uniquement : {"ciqual_nom":"...","marque":null,"emoji":"...","fvl_pct":0,"edulcorant":false,"ns_cat":"general","per100g":{"kcal":0,"prot":0,"lip":0,"gluc":0,"sucres":0,"ag_sat":0,"fibres":0,"eau":0,"sel":0,"ca":0,"fe":0,"vitC":0,"vitD":0,"vitB12":0,"folates":0,"mg":0,"zn":0,"k":0,"omega3":0}}`
+nova = ${NOVA_GUIDE}
+JSON uniquement : {"ciqual_nom":"...","marque":null,"nova":1,"emoji":"...","fvl_pct":0,"edulcorant":false,"ns_cat":"general","per100g":{"kcal":0,"prot":0,"lip":0,"gluc":0,"sucres":0,"ag_sat":0,"fibres":0,"eau":0,"sel":0,"ca":0,"fe":0,"vitC":0,"vitD":0,"vitB12":0,"folates":0,"mg":0,"zn":0,"k":0,"omega3":0}}`
           }]
         })
       });
@@ -5194,13 +5209,19 @@ JSON uniquement : {"ciqual_nom":"...","marque":null,"emoji":"...","fvl_pct":0,"e
         if (d) {
           const m = ciqualMatch(a.nom, a.ciqual_nom);
           a._cands = m.candidates.map(c => ({ c: c.food.c, n: c.food.n }));
-          if (m.best && !m.best.food._noE) { ciqualApplyFood(a, m.best.food); return nsApply(a); }   // entrée sans énergie : on garde l'estimation IA
+          if (m.best && !m.best.food._noE) { ciqualApplyFood(a, m.best.food); return novaFloor(nsApply(a)); }   // entrée sans énergie : on garde l'estimation IA
         }
       } catch (e) { console.warn('[NSR] CIQUAL :', e.message); }
     }
     // 3. Secours : estimation IA
     ciqResetSource(a);
-    return nsApply(a);
+    return novaFloor(nsApply(a));
+  }
+
+  /** Garde-fous NOVA (aliments hors Open Food Facts, dont le NOVA fait foi). */
+  function novaFloor(a) {
+    if (a.nova != null) a.nova = correctNova((a.nom || '') + ' ' + (a.db_nom || ''), a.nova);
+    return a;
   }
 
   /** Revient à l'estimation IA (valeurs d'origine) : efface toute trace de table de composition. */
@@ -5229,6 +5250,7 @@ JSON uniquement : {"ciqual_nom":"...","marque":null,"emoji":"...","fvl_pct":0,"e
       if (a._ai && a._ai.nova !== undefined) a.nova = a._ai.nova;   // NOVA d'origine (celui d'OFF ne s'applique plus)
       delete a.off_code;
       ciqualApplyFood(a, f);
+      novaFloor(a);
     }
     nsApply(a);
     const card = document.getElementById('food-card-' + i);
@@ -6246,7 +6268,7 @@ JSON uniquement : {"ciqual_nom":"...","marque":null,"emoji":"...","fvl_pct":0,"e
       var response = await nsrAnalyzeFetch({
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 500,
-          messages: [{ role: 'user', content: 'Bases : ' + dbs + '. Valeurs pour 100g de "' + name + '". ciqual_nom = intitulé le plus probable dans la table CIQUAL (ex : "Pomme, crue"), marque = marque commerciale si produit industriel identifiable (sinon null). fvl_pct = % de fruits, légumes et légumineuses dans le produit tel que mangé (0-100 ; hors pommes de terre, fruits à coque, graines, huiles ; 100 pour un fruit ou légume nature ou un jus pur fruit). edulcorant = true seulement si une boisson contient des édulcorants non nutritifs (aspartame, acésulfame K, sucralose, stévia, saccharine ; pas les polyols). ns_cat = "boisson" (eau, lait, boisson végétale, jus, soda, thé, café), "eau" (eau nature seule), "fromage" (hors fromage blanc), "viande_rouge" (bœuf, veau, agneau, porc, charcuterie) ou "general". JSON: {"ciqual_nom":"...","marque":null,"emoji":"...","fvl_pct":0,"edulcorant":false,"ns_cat":"general","per100g":{"kcal":0,"prot":0,"lip":0,"gluc":0,"sucres":0,"ag_sat":0,"fibres":0,"eau":0,"sel":0,"ca":0,"fe":0,"vitC":0,"vitD":0,"vitB12":0,"folates":0,"mg":0,"zn":0,"k":0,"omega3":0}}' }]
+          messages: [{ role: 'user', content: 'Bases : ' + dbs + '. Valeurs pour 100g de "' + name + '". ciqual_nom = intitulé le plus probable dans la table CIQUAL (ex : "Pomme, crue"), marque = marque commerciale si produit industriel identifiable (sinon null). fvl_pct = % de fruits, légumes et légumineuses dans le produit tel que mangé (0-100 ; hors pommes de terre, fruits à coque, graines, huiles ; 100 pour un fruit ou légume nature ou un jus pur fruit). edulcorant = true seulement si une boisson contient des édulcorants non nutritifs (aspartame, acésulfame K, sucralose, stévia, saccharine ; pas les polyols). ns_cat = "boisson" (eau, lait, boisson végétale, jus, soda, thé, café), "eau" (eau nature seule), "fromage" (hors fromage blanc), "viande_rouge" (bœuf, veau, agneau, porc, charcuterie) ou "general". nova = ' + NOVA_GUIDE + '. JSON: {"ciqual_nom":"...","marque":null,"nova":1,"emoji":"...","fvl_pct":0,"edulcorant":false,"ns_cat":"general","per100g":{"kcal":0,"prot":0,"lip":0,"gluc":0,"sucres":0,"ag_sat":0,"fibres":0,"eau":0,"sel":0,"ca":0,"fe":0,"vitC":0,"vitD":0,"vitB12":0,"folates":0,"mg":0,"zn":0,"k":0,"omega3":0}}' }]
         })
       });
       var data = await response.json();
