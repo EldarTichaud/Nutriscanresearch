@@ -3232,11 +3232,13 @@
     currentProjectName = projectName;
     document.getElementById('project-detail-name').textContent = projectName;
     const { data: proj } = await sb.from('projects').select('type, config').eq('id', projectId).single();
-    const { count } = await sb.from('project_patients').select('*', { count: 'exact', head: true }).eq('project_id', projectId);
+    const { data: _cl } = await sb.from('project_patients').select('patient_id, profiles(is_simulated)').eq('project_id', projectId);
+    const count = (_cl || []).filter(l => !l.profiles?.is_simulated).length;
+    const simN = (_cl || []).length - count;
     document.getElementById('toggle-show-bilan-summary')?.classList.toggle('on', !!proj?.config?.showBilan);
     const typeLabels = { '24h':'R24H', '72h':'R72H', '5j':'5 jours', '7j':'7 jours', 'custom':'Personnalisé' };
     document.getElementById('project-detail-meta').textContent =
-      (typeLabels[proj?.type] || proj?.type || '') + ' · ' + (count || 0) + ' patient(s)';
+      (typeLabels[proj?.type] || proj?.type || '') + ' · ' + (count || 0) + ' patient(s)' + (simN ? ' + ' + simN + ' simulé(s)' : '');
     await renderPatientsList(projectId);
     renderDataTab(projectId);
     switchTab('patients');
@@ -3254,23 +3256,31 @@
   }
 
   async function renderPatientsList(projectId) {
-    const { data: links } = await sb.from('project_patients')
-      .select('patient_id, profiles(prenom, nom, date_naissance), joined_at')
+    const { data: allLinks } = await sb.from('project_patients')
+      .select('patient_id, profiles(prenom, nom, date_naissance, is_simulated), joined_at')
       .eq('project_id', projectId)
       .order('joined_at', { ascending: true });
+    // Numérotation séparée : les simulés ne décalent jamais l'identifiant des vrais patients
+    var _nReal = 0, _nSim = 0;
+    const links = (allLinks || []).map(l => {
+      const sim = !!l.profiles?.is_simulated;
+      return Object.assign({}, l, { _sim: sim, _ident: sim ? patientIdentifierSim(currentProjectName, ++_nSim) : patientIdentifier(currentProjectName, ++_nReal) });
+    });
+    const simCount = links.filter(l => l._sim).length;
+    const visibleLinks = showSimulated() ? links : links.filter(l => !l._sim);
 
     const { data: tokens } = await sb.from('activation_tokens')
       .select('*').eq('project_id', projectId).eq('used', false);
 
-    const activeHtml = (links || []).map((l, i) => {
-      const ident = patientIdentifier(currentProjectName, i + 1);
+    const activeHtml = visibleLinks.map((l) => {
+      const ident = l._ident;
       const initials = ((l.profiles?.prenom||'?')[0] + '.' + (l.profiles?.nom||'?')[0] + '.').toUpperCase();
       const birthYear = l.profiles?.date_naissance ? l.profiles.date_naissance.split('-')[0] : null;
       return `
       <div class="patient-row">
         <div class="patient-avatar">${(l.profiles?.prenom||'?')[0]}</div>
         <div class="patient-info">
-          <div class="patient-name">${ident}</div>
+          <div class="patient-name">${ident}${l._sim ? simBadgeHtml() : ''}</div>
           <div class="patient-status"><span class="status-dot active"></span>${initials}${birthYear ? ' · né(e) en ' + birthYear : ''} · Compte activé${l.notifications_refused ? ' · <span style="color:#E63E11">🔕 Notifs refusées</span>' : ''}</div>
         </div>
         <div style="font-size:20px">✓</div>
@@ -3289,9 +3299,20 @@
           title="Annuler l'invitation">🗑️</button>
       </div>`).join('');
 
+    const simBar = `
+      <div style="border:1px dashed #F0D58C;background:#FFFBF0;border-radius:10px;padding:10px 12px;margin-bottom:16px">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+          <div style="font-size:13px"><strong>Patients simulés</strong>${simCount ? ' <span style="color:var(--text-light)">(' + simCount + ')</span>' : ''}<div style="font-size:11px;color:var(--text-light)">Démo / test — exclus des stats et exports tant que désactivé</div></div>
+          <div class="toggle ${showSimulated() ? 'on' : ''}" onclick="onToggleSimulated(${showSimulated() ? 'false' : 'true'})" role="switch" aria-checked="${showSimulated()}" aria-label="Inclure les patients simulés"></div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:10px">
+          ${simCount ? '' : '<button class="btn btn-secondary" style="flex:1;font-size:12px" onclick="generateSimulatedPatients()">🧪 Générer 9 patients simulés</button>'}
+          ${simCount ? '<button class="btn btn-secondary" style="flex:1;font-size:12px" onclick="deleteSimulatedPatients()">🗑️ Supprimer les simulés</button>' : ''}
+        </div>
+      </div>`;
     document.getElementById('patients-list').innerHTML =
       `<button class="btn btn-primary" style="margin-bottom:16px" onclick="showAddPatientModal()">+ Ajouter un patient</button>` +
-      activeHtml + pendingHtml ||
+      simBar + activeHtml + pendingHtml ||
       '<p style="color:var(--text-light);font-size:13px">Aucun patient encore.</p>';
   }
 
@@ -3893,6 +3914,10 @@
   // À compléter à chaque nouvelle version (entrée la plus récente en premier)
   // =============================================
   const CHANGELOG = [
+    { version: '0.12.7', date: '2026-11-13', changes: [
+      'Chercheur : patients simulés (démo / test de l\'interface) — 9 par projet, générés par un bouton dans l\'onglet Patients, avec relevés alimentaires calés sur le protocole du projet. Identifiables par l\'étiquette « simulation » et un identifiant dédié (NUT-S001…)',
+      'Interrupteur « Inclure les patients simulés » (désactivé par défaut) : tant qu\'il est désactivé, les simulés sont exclus de la liste, des statistiques et des exports. Bouton de suppression des simulés en un clic'
+    ] },
     { version: '0.12.6', date: '2026-11-12', changes: [
       'Chercheur : nouvel onglet « Qualité moyenne » dans Données — Nutri-Score moyen (score numérique + lettre équivalente + % des kcal par lettre) et NOVA moyen (+ % de l\'énergie par groupe, dont ultra-transformés), pondérés par l\'apport calorique',
       'Tableau par patient et synthèse du projet (moyenne, médiane, écart-type, min–max des valeurs individuelles)',
@@ -5638,6 +5663,48 @@ JSON uniquement : {"ciqual_nom":"...","marque":null,"nova":1,"emoji":"...","fvl_
   var currentProjectStartDate = null;
   var currentProjectDurationDays = null;
   var _invPatients = [];
+
+  // =============================================
+  // PATIENTS SIMULÉS (démo / test de l'interface)
+  // Comptes factices marqués profiles.is_simulated = true. Masqués par défaut des vues chercheur
+  // et des exports ; l'interrupteur « Inclure les patients simulés » les réintègre.
+  // =============================================
+  function showSimulated() { try { return localStorage.getItem('nsr_show_sim') === '1'; } catch (e) { return false; } }
+  function setShowSimulated(v) { try { localStorage.setItem('nsr_show_sim', v ? '1' : '0'); } catch (e) {} }
+  function simBadgeHtml() {
+    return '<span style="font-size:9px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:#92600A;background:#FFF3D6;border:1px solid #F0D58C;border-radius:4px;padding:1px 4px;margin-left:6px;vertical-align:middle">simulation</span>';
+  }
+  /** Identifiant pseudonymisé : réels NUT-0001…, simulés NUT-S001… (série séparée, ne décale pas les vrais). */
+  function patientIdentifierSim(projectName, orderIndex) {
+    var code = deaccent(projectName || 'NSR').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3) || 'NSR';
+    return code + '-S' + String(orderIndex).padStart(3, '0');
+  }
+  /** Identifiants des patients actuellement pris en compte dans les vues chercheur. */
+  function _invIds() { return _invPatients.map(function(p) { return p.patient_id; }); }
+
+  async function onToggleSimulated(on) {
+    setShowSimulated(on);
+    await renderPatientsList(currentProject);
+    if (typeof buildInvestigatorDataTab === 'function') await buildInvestigatorDataTab(currentProject);
+    showToast(on ? 'Patients simulés inclus' : 'Patients simulés masqués', 'success');
+  }
+  async function generateSimulatedPatients() {
+    if (!currentProject) return;
+    if (!confirm('Générer 9 patients simulés avec leurs relevés alimentaires dans ce projet ?\n\nIls sont identifiables (« simulation ») et exclus des exports tant que l\'interrupteur est désactivé.')) return;
+    var { data, error } = await sb.rpc('seed_simulated_patients', { p_project_id: currentProject });
+    if (error) { alert('Erreur : ' + error.message); return; }
+    setShowSimulated(true);
+    showToast('9 patients simulés créés' + (data && data.meals != null ? ' (' + data.meals + ' repas)' : '') + ' ✓', 'success');
+    await openProject(currentProject, currentProjectName);
+  }
+  async function deleteSimulatedPatients() {
+    if (!currentProject) return;
+    if (!confirm('Supprimer tous les patients simulés de ce projet et leurs relevés ? Les vrais patients ne sont pas touchés.')) return;
+    var { error } = await sb.rpc('delete_simulated_patients', { p_project_id: currentProject });
+    if (error) { alert('Erreur : ' + error.message); return; }
+    showToast('Patients simulés supprimés ✓', 'success');
+    await openProject(currentProject, currentProjectName);
+  }
   var _invProject = null;
   var _invSelectedPatient = null;
   var _invSelectedDay = null;
@@ -5977,7 +6044,7 @@ JSON uniquement : {"ciqual_nom":"...","marque":null,"nova":1,"emoji":"...","fvl_
     while (true) {
       var { data, error } = await sb.from('meals')
         .select('id, patient_id, meal_time, skipped, foods(nom, nutriscore, nova, quantite_g, per100g)')
-        .eq('project_id', currentProject)
+        .eq('project_id', currentProject).in('patient_id', _invIds())
         .order('meal_time', { ascending: true })
         .range(from, from + page - 1);
       if (error) throw error;
@@ -6248,7 +6315,7 @@ JSON uniquement : {"ciqual_nom":"...","marque":null,"nova":1,"emoji":"...","fvl_
     // nécessaire pour calculer les métriques "total projet" et "à jour" sur toute l'historique.
     var { data: allMealsEver } = await sb.from('meals')
       .select('patient_id, meal_type, skipped, meal_time')
-      .eq('project_id', currentProject);
+      .eq('project_id', currentProject).in('patient_id', _invIds());
 
     // Sous-ensemble limité à la période sélectionnée (pour la métrique "sur la période")
     var allMeals = (allMealsEver || []).filter(function(m) {
@@ -6362,7 +6429,7 @@ JSON uniquement : {"ciqual_nom":"...","marque":null,"nova":1,"emoji":"...","fvl_
 
     var { data: allMeals } = await sb.from('meals')
       .select('patient_id, meal_type, skipped, foods(per100g, quantite_g)')
-      .eq('project_id', currentProject)
+      .eq('project_id', currentProject).in('patient_id', _invIds())
       .gte('meal_time', startStr + 'T00:00:00')
       .lte('meal_time', endStr + 'T23:59:59');
 
@@ -6449,7 +6516,7 @@ JSON uniquement : {"ciqual_nom":"...","marque":null,"nova":1,"emoji":"...","fvl_
     var { startStr, endStr } = _invGetPeriodRange();
     var { data: allMeals } = await sb.from('meals')
       .select('skipped, foods(nom, nutriscore, nova, quantite_g, per100g)')
-      .eq('project_id', currentProject)
+      .eq('project_id', currentProject).in('patient_id', _invIds())
       .gte('meal_time', startStr + 'T00:00:00')
       .lte('meal_time', endStr + 'T23:59:59');
 
@@ -6685,12 +6752,16 @@ JSON uniquement : {"ciqual_nom":"...","marque":null,"nova":1,"emoji":"...","fvl_
       .order('joined_at', { ascending: true });
     var rawLinks = linksRes.data || [];
     // Charger les profils séparément pour contourner les problèmes de FK implicite
-    _invPatients = await Promise.all(rawLinks.map(async function(link, i) {
+    var loaded = await Promise.all(rawLinks.map(async function(link) {
       var { data: prof } = await sb.from('profiles')
-        .select('prenom, nom').eq('id', link.patient_id).maybeSingle();
-      return { patient_id: link.patient_id, profiles: prof || {},
-        identifier: patientIdentifier(currentProjectName, i + 1) };
+        .select('prenom, nom, is_simulated').eq('id', link.patient_id).maybeSingle();
+      return { patient_id: link.patient_id, profiles: prof || {}, simulated: !!(prof && prof.is_simulated) };
     }));
+    var nReal = 0, nSim = 0;
+    loaded.forEach(function(p) {
+      p.identifier = p.simulated ? patientIdentifierSim(currentProjectName, ++nSim) : patientIdentifier(currentProjectName, ++nReal);
+    });
+    _invPatients = showSimulated() ? loaded : loaded.filter(function(p) { return !p.simulated; });
     var today = new Date().toISOString().split('T')[0];
     document.getElementById('croise-date').value = today;
     _renderInvPatientChips('inv-patient-chips', false);
@@ -6736,7 +6807,7 @@ JSON uniquement : {"ciqual_nom":"...","marque":null,"nova":1,"emoji":"...","fvl_
     var selectedId = isTableau ? _tableauSelectedPatient : _invSelectedPatient;
     container.innerHTML = _invPatients.map(function(p) {
       var name = p.identifier || ((p.profiles?.prenom || '?') + ' ' + ((p.profiles?.nom || '').charAt(0)) + '.');
-      return '<div class="patient-chip' + (p.patient_id === selectedId ? ' active' : '') + '" onclick="_invPickPatient(\'' + containerId + '\',\'' + p.patient_id + '\',' + (isTableau?'true':'false') + ')">' + name + '</div>';
+      return '<div class="patient-chip' + (p.patient_id === selectedId ? ' active' : '') + '" onclick="_invPickPatient(\'' + containerId + '\',\'' + p.patient_id + '\',' + (isTableau?'true':'false') + ')">' + name + (p.simulated ? simBadgeHtml() : '') + '</div>';
     }).join('');
   }
 
@@ -6887,12 +6958,15 @@ JSON uniquement : {"ciqual_nom":"...","marque":null,"nova":1,"emoji":"...","fvl_
   async function exportCSV() {
     if (!currentProject) return;
     var { data: meals } = await sb.from('meals')
-      .select('*, foods(*), profiles(prenom, nom)')
+      .select('*, foods(*), profiles(prenom, nom, is_simulated)')
       .eq('project_id', currentProject).order('meal_time', { ascending: true });
+    // Les patients simulés ne sont exportés que si l'interrupteur est activé, et restent étiquetés
+    var withSim = showSimulated();
+    if (meals && !withSim) meals = meals.filter(function(m) { return !(m.profiles && m.profiles.is_simulated); });
     if (!meals || meals.length === 0) { showToast('Aucune donnée à exporter', 'warning'); return; }
     var rows = [['Patient','Date','Heure','Type repas','Lieu','Inhabituel','Aliment','Quantité(g)','kcal','Prot(g)','Lip(g)','Gluc(g)','Fibres(g)','Sel(g)','Nutriscore','NOVA']];
     meals.forEach(function(m) {
-      var name = (m.profiles?.prenom||'') + ' ' + (m.profiles?.nom||'');
+      var name = (m.profiles?.prenom||'') + ' ' + (m.profiles?.nom||'') + (m.profiles?.is_simulated ? ' [SIMULATION]' : '');
       var date = m.meal_time ? m.meal_time.split('T')[0] : '';
       var time = m.meal_time ? new Date(m.meal_time).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}) : '';
       if (m.skipped) { rows.push([name,date,time,m.meal_type,'','sauté','','','','','','','','','','']); return; }
@@ -6908,7 +6982,7 @@ JSON uniquement : {"ciqual_nom":"...","marque":null,"nova":1,"emoji":"...","fvl_
     var blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
-    a.href = url; a.download = 'NSR_' + (currentProjectName||'export') + '_' + new Date().toISOString().split('T')[0] + '.csv';
+    a.href = url; a.download = 'NSR_' + (currentProjectName||'export') + (withSim ? '_AVEC-SIMULATION' : '') + '_' + new Date().toISOString().split('T')[0] + '.csv';
     document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
     showToast('Export CSV téléchargé ✓', 'success');
 
